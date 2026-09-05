@@ -1,4 +1,6 @@
 /**
+ * Music Box — Cloudflare Worker 音乐播放器（单文件全功能）
+ * ============================================================
  * 一个 worker.js 包含：服务端（API 代理/鉴权/流媒体）+ 完整前端（HTML/CSS/JS）。
  * 部署即用，无需任何本地服务、无需构建步骤。
  *
@@ -186,7 +188,7 @@ const HTML = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>次元星域音乐 - 次元世界，漫天星域</title>
+<title>Music Box</title>
 <style>
 :root{
   --pink:#ffb7c5;--pink2:#ff8fa3;--pink3:#ffadc0;--pink-deep:#e0557a;
@@ -205,7 +207,6 @@ input,select{font:inherit;color:inherit}
 .top{display:flex;align-items:center;gap:14px;padding:12px 20px;background:rgba(255,255,255,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--border);flex-wrap:wrap;z-index:50}
 .top h1{font-size:18px;letter-spacing:1px;background:linear-gradient(90deg,var(--pink2),var(--pink-deep));-webkit-background-clip:text;background-clip:text;color:transparent;white-space:nowrap}
 .search-bar{display:flex;gap:8px;flex:1 1 260px;min-width:260px}
-.src-badge{font-size:13px;color:var(--pink-deep);background:rgba(255,143,163,.12);border:1px solid rgba(255,143,163,.35);border-radius:10px;padding:8px 12px;white-space:nowrap;box-shadow:var(--shadow-sm)}
 .sbar input{flex:1;min-width:110px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 14px;color:var(--text);outline:none;transition:border-color .2s,box-shadow .2s;box-shadow:var(--shadow-sm)}
 .sbar input::placeholder{color:#b0a3a8}
 .sbar input:focus{border-color:var(--pink2);box-shadow:0 0 0 3px rgba(255,143,163,.18)}
@@ -347,9 +348,8 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
 <body>
 
 <div class="top">
-  <h1>♪ 次元星域音乐</h1>
+  <h1>♪ Music Box</h1>
   <div class="search-bar sbar">
-    <span class="src-badge">网易云</span>
     <input id="kw" type="text" placeholder="搜索歌曲 / 歌手 / 专辑……" autocomplete="off">
     <button class="btn-pill" id="btnSearch">搜索</button>
   </div>
