@@ -1,6 +1,4 @@
 /**
- * Music Box — Cloudflare Worker 音乐播放器（单文件全功能）
- * ============================================================
  * 一个 worker.js 包含：服务端（API 代理/鉴权/流媒体）+ 完整前端（HTML/CSS/JS）。
  * 部署即用，无需任何本地服务、无需构建步骤。
  *
@@ -188,7 +186,7 @@ const HTML = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Music Box</title>
+<title>次元星域音乐 - 次元世界，漫天星域</title>
 <style>
 :root{
   --pink:#ffb7c5;--pink2:#ff8fa3;--pink3:#ffadc0;--pink-deep:#e0557a;
@@ -348,7 +346,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
 <body>
 
 <div class="top">
-  <h1>♪ Music Box</h1>
+  <h1>♪ 次元星域音乐</h1>
   <div class="search-bar sbar">
     <input id="kw" type="text" placeholder="搜索歌曲 / 歌手 / 专辑……" autocomplete="off">
     <button class="btn-pill" id="btnSearch">搜索</button>
