@@ -350,6 +350,17 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
   .lrc-line{font-size:14px}
   .lrc-line.active{font-size:17px}
 }
+/* ── 桌面：搜索结果变成歌词栏右侧固定侧边栏 ── */
+@media (min-width:769px){
+  .main{flex-direction:row;align-items:stretch}
+  .lrc-wrap{flex:1;min-width:0}
+  .lrc-overlay{position:relative;inset:auto;z-index:10;flex:0 0 320px;min-width:320px;max-width:360px;opacity:1;transform:none;pointer-events:auto;display:flex;border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;background:rgba(255,255,255,.92);transition:none}
+  .lrc-overlay.show{opacity:1;transform:none;pointer-events:auto}
+  .lrc-overlay.hidden{display:none}
+  .ov-list-wrap{margin:12px 12px 8px}
+  .lrc-top{padding:14px 16px;padding-top:calc(14px + env(safe-area-inset-top))}
+  .lrc-bar{padding:10px 16px}
+}
 @media (min-width:1200px){
   .main{max-width:1400px;margin:0 auto;width:100%}
   .lrc-line{font-size:21px}
@@ -379,6 +390,31 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
     <div class="list-head"><b>歌词</b><span id="lrcNow">♫ 播放后自动加载</span></div>
     <div class="lrc-box" id="lrcBox"><div class="lrc-line meta">搜索并播放一首歌，歌词会显示在这里~</div></div>
   </section>
+  <div class="lrc-overlay hidden" id="lrcOverlay">
+    <div class="lrc-bg" id="lrcBg"></div>
+    <div class="lrc-scrim"></div>
+    <div class="lrc-top">
+      <button class="lrc-close" id="lrcClose" title="收起">↓</button>
+      <div class="lrc-meta">
+        <div class="t">♪ 搜索结果</div>
+        <div class="a" id="ovStat">输入关键词搜索</div>
+      </div>
+    </div>
+    <div class="ov-list-wrap">
+      <div class="list-head"><b>搜索结果</b><span id="stat"></span></div>
+      <ul id="list"><li class="empty">输入关键词，开始你的音乐之旅~</li></ul>
+    </div>
+    <div class="lrc-bar">
+      <button id="lrcPrev" title="上一首">⏮</button>
+      <button id="lrcPlay" title="播放/暂停">▶</button>
+      <button id="lrcNext" title="下一首">⏭</button>
+      <div class="lrc-prog">
+        <span id="lrcCur">00:00</span>
+        <input id="lrcSeek" type="range" min="0" max="1000" value="0">
+        <span id="lrcDur">00:00</span>
+      </div>
+    </div>
+  </div>
 </main>
 
 <footer class="player">
@@ -400,38 +436,11 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
   <div class="p-side">
     <input id="vol" type="range" min="0" max="100" value="80" title="音量">
     <button id="btnMode" title="顺序播放">🔁</button>
-    <button id="btnLrc" title="全屏搜索结果" class="">≡</button>
+    <button id="btnLrc" title="搜索结果" class="">≡</button>
   </div>
 </footer>
 
 <audio id="audio" preload="metadata"></audio>
-
-<!-- 全屏搜索结果页（fixed 覆盖层，不参与主布局） -->
-<div class="lrc-overlay hidden" id="lrcOverlay">
-  <div class="lrc-bg" id="lrcBg"></div>
-  <div class="lrc-scrim"></div>
-  <div class="lrc-top">
-    <button class="lrc-close" id="lrcClose" title="收起">↓</button>
-    <div class="lrc-meta">
-      <div class="t">♪ 搜索结果</div>
-      <div class="a" id="ovStat">输入关键词搜索</div>
-    </div>
-  </div>
-  <div class="ov-list-wrap">
-    <div class="list-head"><b>搜索结果</b><span id="stat"></span></div>
-    <ul id="list"><li class="empty">输入关键词，开始你的音乐之旅~</li></ul>
-  </div>
-  <div class="lrc-bar">
-    <button id="lrcPrev" title="上一首">⏮</button>
-    <button id="lrcPlay" title="播放/暂停">▶</button>
-    <button id="lrcNext" title="下一首">⏭</button>
-    <div class="lrc-prog">
-      <span id="lrcCur">00:00</span>
-      <input id="lrcSeek" type="range" min="0" max="1000" value="0">
-      <span id="lrcDur">00:00</span>
-    </div>
-  </div>
-</div>
 
 <script>
 /* ================= 全局状态 ================= */
