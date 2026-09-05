@@ -418,7 +418,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
 </main>
 
 <footer class="player">
-  <img id="cover" alt="cover">
+  <img id="cover" alt="cover" src="https://t.alcy.cc/tx">
   <div class="p-meta">
     <div class="t" id="pTitle">未在播放</div>
     <div class="a" id="pAuthor"></div>
@@ -828,9 +828,8 @@ document.addEventListener("keydown", function (e) {
   if (e.key === "Escape" && lrcOpen) closeList();
 });
 
-/* 进入页面自动搜索一次示例歌曲 */
-document.getElementById("kw").value = "晴天";
-search();
+/* 初始：不自动搜索任何歌曲；桌面端显示空的搜索结果侧栏 */
+if (window.matchMedia("(min-width:769px)").matches) openList();
 </script>
 </body>
 </html>
