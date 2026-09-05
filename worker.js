@@ -220,14 +220,14 @@ input,select{font:inherit;color:inherit}
 .lrc-wrap .list-head{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;font-size:13px;color:var(--text2);border-bottom:1px solid var(--border)}
 .lrc-wrap .list-head b{color:var(--theme,#e0557a)}
 #lrcNow{font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62%}
-.lrc-box{flex:1;overflow-y:auto;text-align:center;padding:28px 10px;scrollbar-width:none}
+.lrc-box{flex:1;overflow-y:auto;text-align:center;padding:28px 10px;scrollbar-width:none;background:linear-gradient(180deg,rgba(38,43,58,.88),rgba(27,31,42,.94));border-radius:14px;margin:0 12px 12px;border:1px solid rgba(255,255,255,.07)}
 .lrc-box::-webkit-scrollbar{display:none}
-.lrc-line{padding:10px 8px;text-align:center;font-size:19px;line-height:1.6;color:rgba(31,41,55,.32);cursor:pointer;opacity:.55;transform:scale(.95);transform-origin:center;transition:opacity .45s ease,transform .45s ease,color .45s ease,text-shadow .45s ease;animation:lrcIn .45s ease both}
-.lrc-line:hover{color:var(--theme,#e0557a)}
-.lrc-line.active{color:#1f2937;font-size:23px;font-weight:700;opacity:1;transform:scale(1.05);animation:lrcBreath 2.6s ease-in-out infinite}
+.lrc-line{padding:10px 8px;text-align:center;font-size:19px;line-height:1.6;color:rgba(255,255,255,.42);cursor:pointer;opacity:.55;transform:scale(.95);transform-origin:center;transition:opacity .45s ease,transform .45s ease,color .45s ease,text-shadow .45s ease;animation:lrcIn .45s ease both}
+.lrc-line:hover{color:#fff}
+.lrc-line.active{color:#fff;font-size:23px;font-weight:700;opacity:1;transform:scale(1.05);animation:lrcBreath 2.6s ease-in-out infinite}
 @keyframes lrcIn{from{opacity:0;transform:translateY(12px) scale(.92)}to{opacity:.55;transform:translateY(0) scale(.95)}}
 @keyframes lrcBreath{0%,100%{text-shadow:0 2px 22px var(--theme-glow,rgba(255,143,163,.55))}50%{text-shadow:0 2px 36px var(--theme-glow,rgba(255,143,163,.95))}}
-.lrc-line.meta{color:var(--text2);font-size:13px;cursor:default}
+.lrc-line.meta{color:rgba(255,255,255,.6);font-size:13px;cursor:default}
 .lrc-line .lc{word-break:break-word}
 .lrc-line .lt{font-size:.72em;line-height:1.5;opacity:.62;margin-top:3px;transition:opacity .45s ease}
 .lrc-line.active .lt{opacity:.85}
