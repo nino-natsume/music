@@ -186,7 +186,7 @@ const HTML = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>次元星域音乐</title>
+<title>次元星域音乐 - 次元世界，漫天星域</title>
 <style>
 :root{
   --pink:#ffb7c5;--pink2:#ff8fa3;--pink3:#ffadc0;--pink-deep:#e0557a;
@@ -347,7 +347,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
 <body>
 
 <div class="top">
-  <h1>♪ 次元星域音乐 - 次元世界，漫天星域</h1>
+  <h1>♪ 次元星域音乐</h1>
   <div class="search-bar sbar">
     <select id="selServer">
       <option value="netease">网易云</option>
