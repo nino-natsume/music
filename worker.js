@@ -240,10 +240,10 @@ input,select{font:inherit;color:inherit}
 .p-meta .t{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .p-meta .a{font-size:12px;color:var(--text2);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .p-ctrl{display:flex;align-items:center;gap:4px}
-.p-ctrl button{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background .15s,transform .15s}
+.p-ctrl button{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background .15s,transform .15s}
 .p-ctrl button:hover{background:rgba(255,143,163,.15)}
 .p-ctrl button:active{transform:scale(.9)}
-#btnPlay{width:44px;height:44px;background:linear-gradient(135deg,var(--pink),var(--pink2));font-size:17px;color:#fff;box-shadow:0 4px 14px rgba(255,143,163,.45)}
+#btnPlay{width:48px;height:48px;background:linear-gradient(135deg,var(--pink),var(--pink2));font-size:18px;color:#fff;box-shadow:0 4px 14px rgba(255,143,163,.45)}
 #btnPlay:hover{filter:brightness(1.06)}
 .p-prog{flex:1;display:flex;align-items:center;gap:8px;min-width:110px}
 .p-prog span{font-size:12px;color:var(--text2);font-variant-numeric:tabular-nums;min-width:38px;text-align:center}
@@ -253,7 +253,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
 #seek{flex:1}
 #vol{width:80px}
 .p-side{display:flex;align-items:center;gap:4px}
-.p-side button{width:34px;height:34px;border-radius:10px;font-size:14px;display:flex;align-items:center;justify-content:center;transition:background .15s,transform .2s}
+.p-side button{width:42px;height:42px;border-radius:12px;font-size:15px;display:flex;align-items:center;justify-content:center;transition:background .15s,transform .2s}
 .p-side button:hover{background:rgba(255,143,163,.15)}
 .p-side button.on{background:rgba(255,143,163,.22);color:var(--pink-deep)}
 #btnLrc.on{transform:rotate(-3deg) scale(1.05)}
@@ -298,11 +298,8 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
   .player img{width:44px;height:44px}
   .p-meta{width:100px}
   .p-meta .a{font-size:11px}
-  .p-ctrl button{width:32px;height:32px}
-  #btnPlay{width:40px;height:40px}
   .p-prog{min-width:80px}
   #vol{width:54px}
-  .p-side button{width:30px;height:30px}
   .lrc-box{padding:20px 8px}
   .lrc-line{font-size:16px}
   .lrc-line.active{font-size:20px}
@@ -315,9 +312,6 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
   .player{row-gap:6px}
   .player img{width:40px;height:40px;border-radius:10px}
   .p-meta{flex:1;min-width:40px}
-  .p-ctrl{gap:2px}
-  .p-ctrl button{width:30px;height:30px}
-  #btnPlay{width:36px;height:36px}
   .p-side #vol,.p-side #btnMode{display:none}
   .p-prog{flex:1 1 100%;order:9;min-width:0}
   .lrc-top{padding:12px 12px}
@@ -329,7 +323,6 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
 @media (max-width:400px){
   .top h1{font-size:13px}
   .p-meta{max-width:70px}
-  .p-ctrl{gap:0}
 }
 @media (max-height:560px){
   .lrc-box{padding:10px 8px}
