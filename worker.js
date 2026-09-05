@@ -1,33 +1,32 @@
 /**
- * 网页音乐播放器 - Cloudflare Worker
- * ------------------------------------------------------------
- * 部署方式（二选一）：
- *   1) 推荐：Cloudflare Dashboard → Workers & Pages → 创建 Worker
- *      → 粘贴本文件全部内容 → 保存并部署 → 访问 "/" 即为播放器
- *   2) 本地：npm i -g wrangler，然后在本目录执行 wrangler deploy
+ * Music Box — Cloudflare Worker 音乐播放器（单文件全功能）
+ * ============================================================
+ * 一个 worker.js 包含：服务端（API 代理/鉴权/流媒体）+ 完整前端（HTML/CSS/JS）。
+ * 部署即用，无需任何本地服务、无需构建步骤。
  *
- * 前端统一走同源代理（/api /stream /cover /lyric），部署后即可完整使用
- *
- * 环境变量（wrangler.toml [vars] 或 Dashboard → Settings → Variables）：
- *   MUSIC_TOKEN  与音乐 API 服务商约定好的 HMAC-SHA1 密钥。
- *                auth 计算 = HMAC-SHA1(MUSIC_TOKEN, server + type + id)
- *                留空时匿名透传（search/song 可用，lrc/url/pic 会被服务商拒绝）
+ * 部署（任选）：
+ *   1) Cloudflare Dashboard → Workers & Pages → Create → Worker
+ *      → 粘贴本文件全部内容 → Save and Deploy
+ *   2) 或绑定 GitHub 仓库（main 分支）自动构建部署
  *
  * 端点：
- *   GET /            播放器页面 (HTML)
- *   GET /api         透明代理 https://api.107211.xyz/api （自动补 auth 与 r）
- *   GET /stream      音频流代理   ?server=&id=
- *   GET /cover       封面图代理   ?server=&id=
- *   GET /lyric       歌词代理     ?server=&id=
+ *   GET /            播放器页面
+ *   GET /api         透明代理 https://api.107211.xyz/api（自动补 auth 与 r）
+ *   GET /stream      音频流   ?server=&id=
+ *   GET /cover       封面图   ?server=&id=
+ *   GET /lyric       歌词     ?server=&id=
  *
- * 上游 API：https://api.107211.xyz/api
+ * 环境变量：
+ *   MUSIC_TOKEN  上游服务商 HMAC-SHA1 密钥（auth = HMAC-SHA1(token, server+type+id)）
+ *                lrc/url/pic 需要 auth；留空则匿名（search/song 可用）
+ *
+ * 上游：https://api.107211.xyz/api
  *   server: netease | tencent | kugou | baidu | kuwo
  *   type  : search | song | album | artist | playlist | lrc | url | pic
  */
 
 const API_BASE = "https://api.107211.xyz/api";
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36";
-
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
@@ -35,123 +34,72 @@ const CORS = {
   "Access-Control-Max-Age": "86400",
 };
 
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
+const json = (obj, status = 200) =>
+  new Response(JSON.stringify(obj), {
     status,
     headers: { "content-type": "application/json; charset=utf-8", ...CORS, "cache-control": "no-store" },
   });
-}
 
 async function hmacSha1(secret, message) {
   const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(secret),
-    { name: "HMAC", hash: "SHA-1" },
-    false,
-    ["sign"],
-  );
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-1" }, false, ["sign"]);
   const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
-  return Array.from(new Uint8Array(sig))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
-
 async function makeAuth(env, server, type, id) {
   const token = (env.MUSIC_TOKEN || "").trim();
   if (!token) return "";
   return hmacSha1(token, server + type + id);
 }
-
-function withCors(resp) {
-  const h = new Headers(resp.headers);
-  h.set("Access-Control-Allow-Origin", "*");
-  return h;
-}
-
-function buildUpstream(server, type, id, env) {
+const buildUpstream = (server, type, id) => {
   const up = new URL(API_BASE);
   up.searchParams.set("server", server);
   up.searchParams.set("type", type);
   up.searchParams.set("id", id);
   up.searchParams.set("r", String(Date.now()));
   return up;
-}
+};
+const withCors = (resp) => {
+  const h = new Headers(resp.headers);
+  h.set("Access-Control-Allow-Origin", "*");
+  return h;
+};
 
-// 从上游原始响应中提取第一个可用 URL（兼容 JSON 对象 / 数组 / 纯文本）
-function extractUrl(rawText) {
-  const t = (rawText || "").trim();
-  if (!t) return "";
-  if (/^https?:\/\//i.test(t)) return t;
-  try {
-    const scan = (o) => {
-      if (o == null) return "";
-      if (typeof o === "string") return /^https?:\/\//i.test(o) ? o : "";
-      if (Array.isArray(o)) return scan(o[0]);
-      if (typeof o === "object") {
-        if (o.url) {
-          const s = String(o.url);
-          return /^https?:\/\//i.test(s) ? s : "";
-        }
-        if (o.data) return scan(o.data);
-        if (o.lrc) return scan(o.lrc);
-        if (o['0']) return scan(o['0']);
-        const keys = Object.keys(o);
-        for (const k of keys) {
-          const hit = scan(o[k]);
-          if (hit) return hit;
-        }
-      }
-      return "";
-    };
-    return scan(JSON.parse(t));
-  } catch (e) {
-    return "";
-  }
-}
-
-// ---------- 端点实现 ----------
+// ---------- 端点：/api（透明代理） ----------
 
 async function handleApi(url, env) {
   const server = url.searchParams.get("server") || "netease";
   const type = url.searchParams.get("type") || "search";
   const id = url.searchParams.get("id") || "";
-
-  const up = buildUpstream(server, type, id, env);
+  const up = buildUpstream(server, type, id);
   if (["lrc", "url", "pic"].includes(type)) {
     const auth = await makeAuth(env, server, type, id);
     if (auth) up.searchParams.set("auth", auth);
   }
-
-  const resp = await fetch(up.toString(), {
-    headers: { "User-Agent": UA, Referer: API_BASE },
-  });
-  // body 已被 fetch 解码，剔除压缩/长度头避免客户端二次解压出错
+  const resp = await fetch(up.toString(), { headers: { "User-Agent": UA, Referer: API_BASE } });
   const h = withCors(resp);
-  h.delete("content-encoding");
+  h.delete("content-encoding"); // body 已被 fetch 解码，剔除压缩/长度头避免二次解压出错
   h.delete("content-length");
   h.set("Cache-Control", "no-store");
   return new Response(resp.body, { status: resp.status, headers: h });
 }
 
-// 上游 body 整体读入后判断：JSON(含 URL) 则二次拉取，二进制(音频/图片) 则直接返回
-async function resolveBinary(envObj, kind) {
-  // kind: "stream" | "cover"
-  const server = envObj.url.searchParams.get("server") || "netease";
-  const id = envObj.url.searchParams.get("id") || "";
-  if (!id) return { error: json({ error: "missing id" }, 400) };
+// ---------- 端点：/stream /cover（二进制或 URL 双重兼容） ----------
 
+async function resolveBinary(url, env, kind) {
+  const server = url.searchParams.get("server") || "netease";
+  const id = url.searchParams.get("id") || "";
+  if (!id) return json({ error: "missing id" }, 400);
   const type = kind === "stream" ? "url" : "pic";
-  const up = buildUpstream(server, type, id, envObj.env);
-  const auth = await makeAuth(envObj.env, server, type, id);
+  const up = buildUpstream(server, type, id);
+  const auth = await makeAuth(env, server, type, id);
   if (auth) up.searchParams.set("auth", auth);
 
   const r1 = await fetch(up.toString(), { headers: { "User-Agent": UA } });
-  if (!r1.ok) return { error: json({ error: "upstream " + type + " api " + r1.status }, 502) };
+  if (!r1.ok) return json({ error: "upstream " + type + " api " + r1.status }, 502);
 
   const ct1 = (r1.headers.get("content-type") || "").toLowerCase();
   if (ct1.startsWith("audio/") || ct1.startsWith("image/") || ct1.startsWith("video/") || ct1.includes("octet-stream")) {
-    // 上游直接给了媒体流
     const h = withCors(r1);
     h.delete("content-encoding");
     h.delete("content-length");
@@ -159,48 +107,58 @@ async function resolveBinary(envObj, kind) {
     return new Response(r1.body, { status: r1.status, headers: h });
   }
 
-  // 读入内存判断：JSON(URL) 还是二进制
   const buf = new Uint8Array(await r1.arrayBuffer());
   const lead = new TextDecoder("utf-8").decode(buf.slice(0, 8)).trimStart();
   if (lead.startsWith("{") || lead.startsWith("[")) {
-    const obj = JSON.parse(new TextDecoder("utf-8").decode(buf));
-    const target = extractUrl(JSON.stringify(obj));
-    if (!target) return { error: json({ error: kind + " url not found in upstream json" }, 502) };
+    const target = extractUrl(new TextDecoder("utf-8").decode(buf));
+    if (!target) return json({ error: kind + " url not found" }, 502);
     const r2 = await fetch(target, { headers: { "User-Agent": UA } });
     const h2 = withCors(r2);
     h2.set("Cache-Control", kind === "cover" ? "public, max-age=86400" : "no-store");
     return new Response(r2.body, { status: r2.status, headers: h2 });
   }
-
-  // 二进制媒体直接回
   const h3 = { "content-type": kind === "stream" ? "audio/mpeg" : "image/jpeg", ...CORS };
   h3["Cache-Control"] = kind === "cover" ? "public, max-age=86400" : "no-store";
   return new Response(buf, { status: 200, headers: h3 });
 }
 
-async function handleStream(url, env) {
-  return resolveBinary({ url, env }, "stream");
+// 从上游 JSON 文本中递归提取第一个 http 链接
+function extractUrl(rawText) {
+  const t = (rawText || "").trim();
+  if (!t) return "";
+  if (/^https?:\/\//i.test(t)) return t;
+  const scan = (o) => {
+    if (o == null) return "";
+    if (typeof o === "string") return /^https?:\/\//i.test(o) ? o : "";
+    if (Array.isArray(o)) return scan(o[0]);
+    if (typeof o === "object") {
+      if (o.url) { const s = String(o.url); return /^https?:\/\//i.test(s) ? s : ""; }
+      if (o.data) return scan(o.data);
+      if (o.lrc) return scan(o.lrc);
+      if (o["0"]) return scan(o["0"]);
+      for (const k of Object.keys(o)) {
+        const hit = scan(o[k]);
+        if (hit) return hit;
+      }
+    }
+    return "";
+  };
+  try { return scan(JSON.parse(t)); } catch (e) { return ""; }
 }
 
-async function handleCover(url, env) {
-  return resolveBinary({ url, env }, "cover");
-}
+// ---------- 端点：/lyric ----------
 
 async function handleLyric(url, env) {
   const server = url.searchParams.get("server") || "netease";
   const id = url.searchParams.get("id") || "";
   if (!id) return json({ error: "missing id" }, 400);
-
-  const up = buildUpstream(server, "lrc", id, env);
+  const up = buildUpstream(server, "lrc", id);
   const auth = await makeAuth(env, server, "lrc", id);
   if (auth) up.searchParams.set("auth", auth);
-
   const r1 = await fetch(up.toString(), { headers: { "User-Agent": UA } });
   if (!r1.ok) return json({ error: "upstream lrc api " + r1.status }, 502);
-
   let lrcText = await r1.text();
   try {
-    const obj = JSON.parse(lrcText);
     const scan = (o) => {
       if (o == null) return "";
       if (typeof o === "string") return o;
@@ -213,43 +171,43 @@ async function handleLyric(url, env) {
       }
       return "";
     };
-    const got = scan(obj);
+    const got = scan(JSON.parse(lrcText));
     if (got) lrcText = got;
-  } catch (e) {
-    // 纯文本 LRC，原样返回
-  }
+  } catch (e) { /* 纯文本 LRC，原样返回 */ }
   return new Response(lrcText, {
     headers: { "content-type": "text/plain; charset=utf-8", ...CORS, "cache-control": "no-store" },
   });
 }
+
+// ============================================================
+//  前端：HTML + CSS + JS（全部内联于 worker.js，单文件部署）
+// ============================================================
 
 const HTML = `<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Music Box :: Cloudflare Worker</title>
+<title>Music Box</title>
 <style>
 :root{
   --pink:#ffb7c5;--pink2:#ff8fa3;--pink3:#ffadc0;--pink-deep:#e0557a;
-  --bg0:#fef8fa;--bg1:#fff;
   --card:rgba(255,255,255,.85);--border:rgba(255,183,197,.45);
   --text:#1f2937;--text2:#6b7280;
   --shadow:0 6px 20px rgba(255,143,163,.14);
   --shadow-sm:0 2px 10px rgba(255,143,163,.12);
+  --theme:#e0557a; --theme-glow:rgba(255,143,163,.55);
 }
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{height:100%}
 body{font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;background:linear-gradient(180deg,#fefafc 0%,#fdf3f7 45%,#fbeef3 100%);background-attachment:fixed;color:var(--text);min-height:100vh;display:flex;flex-direction:column;overflow:hidden}
 button{cursor:pointer;border:none;background:none;color:inherit;font:inherit}
 input,select{font:inherit;color:inherit}
 
+/* ── 顶部搜索栏 ── */
 .top{display:flex;align-items:center;gap:14px;padding:12px 20px;background:rgba(255,255,255,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--border);flex-wrap:wrap;z-index:50}
 .top h1{font-size:18px;letter-spacing:1px;background:linear-gradient(90deg,var(--pink2),var(--pink-deep));-webkit-background-clip:text;background-clip:text;color:transparent;white-space:nowrap}
 .search-bar{display:flex;gap:8px;flex:1 1 260px;min-width:260px}
 .sbar select{background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 10px;color:var(--text);outline:none;box-shadow:var(--shadow-sm)}
-.sbar select:focus{border-color:var(--pink2)}
-.sbar select option{background:#fff;color:var(--text)}
 .sbar input{flex:1;min-width:110px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 14px;color:var(--text);outline:none;transition:border-color .2s,box-shadow .2s;box-shadow:var(--shadow-sm)}
 .sbar input::placeholder{color:#b0a3a8}
 .sbar input:focus{border-color:var(--pink2);box-shadow:0 0 0 3px rgba(255,143,163,.18)}
@@ -257,68 +215,25 @@ input,select{font:inherit;color:inherit}
 .btn-pill:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(255,143,163,.4)}
 .btn-pill:active{transform:scale(.96)}
 
+/* ── 主区：歌词面板（外围颜色随封面主题色动态变化） ── */
 .main{flex:1;display:flex;flex-direction:column;gap:16px;padding:16px 20px 76px;overflow:hidden}
-.list-wrap{flex:1;display:flex;flex-direction:column;min-height:0;background:var(--card);border:1px solid var(--border);border-radius:16px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:var(--shadow)}
-/* 主区歌词面板（原搜索结果位置）：外围颜色由 JS 按封面主题色动态设置 */
-.lrc-wrap{position:relative;overflow:hidden;transition:background .6s ease,border-color .6s ease,box-shadow .6s ease}
+.lrc-wrap{flex:1;display:flex;flex-direction:column;min-height:0;background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;position:relative;transition:background .6s ease,border-color .6s ease,box-shadow .6s ease}
+.lrc-wrap .list-head{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;font-size:13px;color:var(--text2);border-bottom:1px solid var(--border)}
 .lrc-wrap .list-head b{color:var(--theme,#e0557a)}
 #lrcNow{font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62%}
-.lrc-wrap .lrc-line:hover{color:var(--theme,#e0557a)}
-.lrc-wrap .lrc-line.active{color:#1f2937;font-weight:700;transform:scale(1.02);text-shadow:0 2px 22px var(--theme-glow,rgba(255,143,163,.55))}
-/* 全屏搜索结果页内的列表卡片 */
-.ov-list-wrap{position:relative;z-index:2;flex:1;min-height:0;display:flex;flex-direction:column;margin:0 16px 10px;background:rgba(255,255,255,.9);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);overflow:hidden}
-.list-head{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;font-size:13px;color:var(--text2);border-bottom:1px solid var(--border)}
-.list-head b{color:var(--pink-deep)}
-#stat{font-size:12px;color:var(--text2)}
-#list{flex:1;overflow-y:auto;padding:8px;list-style:none}
-#list::-webkit-scrollbar{width:8px}
-#list::-webkit-scrollbar-thumb{background:rgba(255,143,163,.3);border-radius:6px}
-#list li{display:flex;align-items:center;gap:14px;padding:10px 14px;border-radius:12px;cursor:pointer;transition:background .18s,transform .15s}
-#list li:hover{background:rgba(255,143,163,.08);transform:translateX(2px)}
-#list li.active{background:rgba(255,143,163,.14);box-shadow:inset 0 0 0 1px rgba(255,183,197,.5)}
-#list li .num{width:26px;text-align:center;font-size:12px;color:var(--text2);font-variant-numeric:tabular-nums}
-#list li.active .num{color:var(--pink-deep)}
-#list li .nm{flex:1;min-width:0}
-#list li .t{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#list li .a{font-size:12px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#list li .play-badge{display:none;font-size:12px;color:var(--pink-deep)}
-#list li.active .play-badge{display:inline}
-#list .empty{padding:50px 20px;text-align:center;color:var(--text2);font-size:14px}
-
-/* ---- 全屏歌词页：fixed 覆盖层，完全不参与主布局，切换绝不引起页面上抬 ---- */
-.lrc-overlay{position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;opacity:0;transform:translateY(30px) scale(.98);pointer-events:none;transition:opacity .38s cubic-bezier(.22,.61,.36,1),transform .38s cubic-bezier(.22,.61,.36,1)}
-.lrc-overlay.hidden{display:none}
-.lrc-overlay.show{opacity:1;transform:none;pointer-events:auto}
-.lrc-bg{position:absolute;inset:-50px;background-size:cover;background-position:center;filter:blur(52px) saturate(1.4);transform:scale(1.2);transition:background-image .4s ease}
-.lrc-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(254,249,251,.72) 0%,rgba(254,249,251,.86) 45%,rgba(252,242,246,.97) 100%)}
-.lrc-top{position:relative;z-index:2;display:flex;align-items:center;gap:14px;padding:16px 20px;padding-top:calc(16px + env(safe-area-inset-top))}
-.lrc-close{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.7);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--pink-deep);box-shadow:var(--shadow-sm);transition:transform .3s ease,background .2s}
-.lrc-close:hover{transform:translateY(-2px) rotate(-8deg);background:#fff}
-.lrc-meta{min-width:0}
-.lrc-meta .t{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lrc-meta .a{font-size:12px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lrc-box{flex:1;overflow-y:auto;text-align:center;padding:28px 10px;scrollbar-width:none}
 .lrc-box::-webkit-scrollbar{display:none}
 .lrc-line{padding:10px 8px;text-align:center;font-size:19px;line-height:1.6;color:rgba(31,41,55,.32);cursor:pointer;transition:opacity .38s ease,transform .38s ease,color .38s ease,text-shadow .38s ease}
-.lrc-line:hover{color:rgba(224,85,122,.75)}
-.lrc-line.active{color:#1f2937;font-size:23px;font-weight:700;transform:scale(1.04);text-shadow:0 2px 22px rgba(255,143,163,.55)}
+.lrc-line:hover{color:var(--theme,#e0557a)}
+.lrc-line.active{color:#1f2937;font-size:23px;font-weight:700;transform:scale(1.04);text-shadow:0 2px 22px var(--theme-glow,rgba(255,143,163,.55))}
 .lrc-line.meta{color:var(--text2);font-size:13px;cursor:default}
-/* 双语歌词：原文 + 翻译 */
+.lrc-line .lc{word-break:break-word}
 .lrc-line .lt{font-size:.72em;line-height:1.5;opacity:.62;margin-top:3px}
 .lrc-line.active .lt{opacity:.85}
-.lrc-bar{position:relative;z-index:2;display:flex;align-items:center;gap:12px;padding:12px 20px;padding-bottom:calc(12px + env(safe-area-inset-bottom));background:rgba(255,255,255,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--border)}
-.lrc-bar button{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background .15s,transform .15s}
-.lrc-bar button:hover{background:rgba(255,143,163,.15)}
-.lrc-bar button:active{transform:scale(.9)}
-#lrcPlay{width:46px;height:46px;background:linear-gradient(135deg,var(--pink),var(--pink2));font-size:18px;color:#fff;box-shadow:0 4px 16px rgba(255,143,163,.5)}
-#lrcPlay:hover{filter:brightness(1.06)}
-.lrc-prog{flex:1;display:flex;align-items:center;gap:8px;min-width:100px}
-.lrc-prog span{font-size:12px;color:var(--text2);font-variant-numeric:tabular-nums;min-width:38px;text-align:center}
-#lrcSeek{flex:1}
 
-/* ---- 底部播放条 ---- */
+/* ── 底部播放条 ── */
 .player{position:fixed;left:0;right:0;bottom:0;display:flex;align-items:center;gap:12px;padding:10px 20px;padding-bottom:calc(10px + env(safe-area-inset-bottom));background:rgba(255,255,255,.88);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-top:1px solid var(--border);box-shadow:0 -6px 24px rgba(255,143,163,.12);flex-wrap:wrap;z-index:100}
-.player img{width:54px;height:54px;border-radius:12px;object-fit:cover;background:var(--bg1);box-shadow:0 4px 14px rgba(255,143,163,.3)}
+.player img{width:54px;height:54px;border-radius:12px;object-fit:cover;background:#fff;box-shadow:0 4px 14px rgba(255,143,163,.3)}
 .p-meta{width:150px;min-width:0}
 .p-meta .t{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .p-meta .a{font-size:12px;color:var(--text2);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -341,7 +256,47 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
 .p-side button.on{background:rgba(255,143,163,.22);color:var(--pink-deep)}
 #btnLrc.on{transform:rotate(-3deg) scale(1.05)}
 
-/* ---- 自适应：手机 / 平板 / 桌面 / 横屏 全覆盖 ---- */
+/* ── 全屏搜索结果页（fixed 覆盖层，不参与主布局） ── */
+.lrc-overlay{position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;opacity:0;transform:translateY(30px) scale(.98);pointer-events:none;transition:opacity .38s cubic-bezier(.22,.61,.36,1),transform .38s cubic-bezier(.22,.61,.36,1)}
+.lrc-overlay.hidden{display:none}
+.lrc-overlay.show{opacity:1;transform:none;pointer-events:auto}
+.lrc-bg{position:absolute;inset:-50px;background-size:cover;background-position:center;filter:blur(52px) saturate(1.4);transform:scale(1.2);transition:background-image .4s ease}
+.lrc-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(254,249,251,.72) 0%,rgba(254,249,251,.86) 45%,rgba(252,242,246,.97) 100%)}
+.lrc-top{position:relative;z-index:2;display:flex;align-items:center;gap:14px;padding:16px 20px;padding-top:calc(16px + env(safe-area-inset-top))}
+.lrc-close{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.7);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--pink-deep);box-shadow:var(--shadow-sm);transition:transform .3s ease,background .2s}
+.lrc-close:hover{transform:translateY(-2px) rotate(-8deg);background:#fff}
+.lrc-meta{min-width:0}
+.lrc-meta .t{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lrc-meta .a{font-size:12px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-list-wrap{position:relative;z-index:2;flex:1;min-height:0;display:flex;flex-direction:column;margin:0 16px 10px;background:rgba(255,255,255,.9);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);overflow:hidden}
+.ov-list-wrap .list-head{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;font-size:13px;color:var(--text2);border-bottom:1px solid var(--border)}
+.ov-list-wrap .list-head b{color:var(--pink-deep)}
+#stat{font-size:12px;color:var(--text2)}
+#list{flex:1;overflow-y:auto;padding:8px;list-style:none}
+#list::-webkit-scrollbar{width:8px}
+#list::-webkit-scrollbar-thumb{background:rgba(255,143,163,.3);border-radius:6px}
+#list li{display:flex;align-items:center;gap:14px;padding:10px 14px;border-radius:12px;cursor:pointer;transition:background .18s,transform .15s}
+#list li:hover{background:rgba(255,143,163,.08);transform:translateX(2px)}
+#list li.active{background:rgba(255,143,163,.14);box-shadow:inset 0 0 0 1px rgba(255,183,197,.5)}
+#list li .num{width:26px;text-align:center;font-size:12px;color:var(--text2);font-variant-numeric:tabular-nums}
+#list li.active .num{color:var(--pink-deep)}
+#list li .nm{flex:1;min-width:0}
+#list li .t{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#list li .a{font-size:12px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#list li .play-badge{display:none;font-size:12px;color:var(--pink-deep)}
+#list li.active .play-badge{display:inline}
+#list .empty{padding:50px 20px;text-align:center;color:var(--text2);font-size:14px}
+.lrc-bar{position:relative;z-index:2;display:flex;align-items:center;gap:12px;padding:12px 20px;padding-bottom:calc(12px + env(safe-area-inset-bottom));background:rgba(255,255,255,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--border)}
+.lrc-bar button{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background .15s,transform .15s}
+.lrc-bar button:hover{background:rgba(255,143,163,.15)}
+.lrc-bar button:active{transform:scale(.9)}
+#lrcPlay{width:46px;height:46px;background:linear-gradient(135deg,var(--pink),var(--pink2));font-size:18px;color:#fff;box-shadow:0 4px 16px rgba(255,143,163,.5)}
+#lrcPlay:hover{filter:brightness(1.06)}
+.lrc-prog{flex:1;display:flex;align-items:center;gap:8px;min-width:100px}
+.lrc-prog span{font-size:12px;color:var(--text2);font-variant-numeric:tabular-nums;min-width:38px;text-align:center}
+#lrcSeek{flex:1}
+
+/* ── 自适应：手机 / 平板 / 桌面 / 横屏 ── */
 @media (max-width:768px){
   .top{padding:10px 12px}
   .top h1{font-size:15px}
@@ -418,7 +373,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
 </div>
 
 <main class="main">
-  <section class="list-wrap lrc-wrap" id="lrcPanelMain">
+  <section class="lrc-wrap" id="lrcPanelMain">
     <div class="list-head"><b>歌词</b><span id="lrcNow">♫ 播放后自动加载</span></div>
     <div class="lrc-box" id="lrcBox"><div class="lrc-line meta">搜索并播放一首歌，歌词会显示在这里~</div></div>
   </section>
@@ -449,7 +404,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
 
 <audio id="audio" preload="metadata"></audio>
 
-<!-- 全屏搜索结果页（fixed 覆盖层，歌词已移到主卡片区） -->
+<!-- 全屏搜索结果页（fixed 覆盖层，不参与主布局） -->
 <div class="lrc-overlay hidden" id="lrcOverlay">
   <div class="lrc-bg" id="lrcBg"></div>
   <div class="lrc-scrim"></div>
@@ -477,18 +432,19 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
 </div>
 
 <script>
+/* ================= 全局状态 ================= */
 var S = { server: "netease", list: [], idx: -1, mode: 0, lrc: [], lrcIdx: -1 };
 var audio = document.getElementById("audio");
 var modeNames = ["顺序播放", "列表循环", "单曲循环"];
 var modeIcons = ["🔁", "🔃", "🔂"];
-// 统一走同源代理（Cloudflare Worker），自动附带 auth 并解决 CORS 与 http 混合内容
+
+/* ================= 工具 ================= */
 function apiUrl(type, id) {
   return "/api?server=" + encodeURIComponent(S.server) + "&type=" + encodeURIComponent(type) + "&id=" + encodeURIComponent(id);
 }
 function proxyUrl(kind, id) {
   return "/" + kind + "?server=" + encodeURIComponent(S.server) + "&id=" + encodeURIComponent(id);
 }
-
 function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
     return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
@@ -499,7 +455,12 @@ function fmt(sec) {
   var m = Math.floor(sec / 60), s = sec % 60;
   return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
 }
+function songTitle(it) { return it.title || it.name || "未知歌曲"; }
+function songAuthor(it) {
+  return Array.isArray(it.author) ? it.author.join(" / ") : (it.author || it.artist || "");
+}
 
+/* ================= 搜索 ================= */
 function search() {
   var kw = document.getElementById("kw").value.trim();
   if (!kw) return;
@@ -523,12 +484,13 @@ function search() {
       ul.innerHTML = "";
       var li = document.createElement("li");
       li.className = "empty";
-      li.textContent = "请求失败：" + msg + "。请确认 Worker 已成功部署，且 /api 端点可访问";
+      li.textContent = "请求失败：" + msg + "。请确认 Worker 已正确部署";
       ul.appendChild(li);
       openList();
     });
 }
 
+/* ================= 列表 ================= */
 function itemId(it, i) {
   if (it && it.id) return String(it.id);
   var u = (it && (it.url || it.pic || it.lrc)) || "";
@@ -538,7 +500,6 @@ function itemId(it, i) {
   } catch (e) {}
   return String(i);
 }
-
 function renderList() {
   var ul = document.getElementById("list");
   ul.innerHTML = "";
@@ -559,10 +520,10 @@ function renderList() {
     nm.className = "nm";
     var t = document.createElement("div");
     t.className = "t";
-    t.textContent = it.title || it.name || "未知歌曲";
+    t.textContent = songTitle(it);
     var a = document.createElement("div");
     a.className = "a";
-    a.textContent = Array.isArray(it.author) ? it.author.join(" / ") : (it.author || it.artist || "未知歌手");
+    a.textContent = songAuthor(it) || "未知歌手";
     nm.appendChild(t);
     nm.appendChild(a);
     var badge = document.createElement("span");
@@ -576,14 +537,15 @@ function renderList() {
   });
 }
 
+/* ================= 播放 ================= */
 function playItem(i) {
   var it = S.list[i];
   if (!it) return;
   S.idx = i;
   S.lrc = []; S.lrcIdx = -1;
   renderList();
-  document.getElementById("pTitle").textContent = it.title || it.name || "未知歌曲";
-  document.getElementById("pAuthor").textContent = Array.isArray(it.author) ? it.author.join(" / ") : (it.author || it.artist || "");
+  document.getElementById("pTitle").textContent = songTitle(it);
+  document.getElementById("pAuthor").textContent = songAuthor(it);
   var id = itemId(it, i);
   var coverEl = document.getElementById("cover");
   coverEl.src = proxyUrl("cover", id);
@@ -591,19 +553,17 @@ function playItem(i) {
   coverEl.onload = function () { extractTheme(applyTheme); };
   coverEl.onerror = function () { coverEl.src = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="112" height="112"><rect width="112" height="112" rx="24" fill="#fff7f9"/><rect x="1" y="1" width="110" height="110" rx="23" fill="none" stroke="#ffb7c5" stroke-width="2"/><text x="56" y="66" font-size="30" text-anchor="middle" fill="#e0557a">♪</text></svg>'); };
   audio.play().then(function () { setPlaying(true); }).catch(function () {});
-  // 主区歌词头部显示当前歌曲 + 全屏列表页模糊封面背景（主题色由 cover onload 提取）
-  document.getElementById("lrcNow").textContent = (it.title || it.name || "未知歌曲") + " - " + (Array.isArray(it.author) ? it.author.join(" / ") : (it.author || it.artist || ""));
+  document.getElementById("lrcNow").textContent = songTitle(it) + " - " + songAuthor(it);
   document.getElementById("lrcBg").style.backgroundImage = "url('" + proxyUrl("cover", id) + "')";
   loadLrc(id);
 }
-
 function setPlaying(on) {
   document.getElementById("btnPlay").textContent = on ? "⏸" : "▶";
   var lp = document.getElementById("lrcPlay");
   if (lp) lp.textContent = on ? "⏸" : "▶";
 }
 
-// ---- 封面主题色：提取平均色，应用到歌词面板外围 ----
+/* ================= 封面主题色 ================= */
 function extractTheme(cb) {
   var img = document.getElementById("cover");
   if (!img || !img.naturalWidth) { cb(null); return; }
@@ -629,7 +589,7 @@ function applyTheme(rgb) {
   panel.style.setProperty("--theme-glow", "rgba(" + r + "," + g + "," + b + ",.55)");
 }
 
-// ---- 歌词 ----
+/* ================= 歌词（双语） ================= */
 function loadLrc(id) {
   var box = document.getElementById("lrcBox");
   box.innerHTML = "";
@@ -637,8 +597,7 @@ function loadLrc(id) {
   tip.className = "lrc-line meta";
   tip.textContent = "歌词加载中……";
   box.appendChild(tip);
-  var u = proxyUrl("lyric", id);
-  fetch(u)
+  fetch(proxyUrl("lyric", id))
     .then(function (r) { return r.text(); })
     .then(function (txt) {
       S.lrc = parseLrc(txt);
@@ -653,7 +612,6 @@ function loadLrc(id) {
       box.appendChild(tip2);
     });
 }
-
 function parseLrc(text) {
   var rows = [];
   var re = /\[(\d{1,2}):(\d{1,2}(?:[.:]\d{1,3})?)\]/g;
@@ -671,7 +629,7 @@ function parseLrc(text) {
     }
   });
   rows.sort(function (a, b) { return a.t - b.t; });
-  // 翻译合并：同一时间戳（或极近）且内容不同的相邻行 → 原文+翻译 双行
+  // 翻译合并：同一时间戳（或极近 <0.5s）且内容不同的相邻行 → 原文+翻译 双行
   var out = [];
   for (var i = 0; i < rows.length; i++) {
     var cur = rows[i];
@@ -685,7 +643,6 @@ function parseLrc(text) {
   }
   return out;
 }
-
 function renderLrc() {
   var box = document.getElementById("lrcBox");
   box.innerHTML = "";
@@ -709,12 +666,10 @@ function renderLrc() {
       s2.textContent = it.tl;
       d.appendChild(s2);
     }
-    // 点击歌词行：跳转到对应时间
     d.onclick = function () { if (it.t >= 0) audio.currentTime = it.t; };
     box.appendChild(d);
   });
 }
-
 function updateLrc() {
   if (!S.lrc.length) return;
   var t = audio.currentTime;
@@ -734,11 +689,12 @@ function updateLrc() {
   }
 }
 
+/* ================= 全屏搜索结果页 ================= */
 var lrcOpen = false;
 function openList() {
   var o = document.getElementById("lrcOverlay");
   o.classList.remove("hidden");
-  void o.offsetWidth; // 强制重排，让入场过渡动画生效
+  void o.offsetWidth; // 强制重排，让入场动画生效
   o.classList.add("show");
   document.getElementById("btnLrc").classList.add("on");
   lrcOpen = true;
@@ -754,7 +710,7 @@ function toggleList() {
   if (lrcOpen) closeList(); else openList();
 }
 
-// ---- 事件绑定 ----
+/* ================= 进度同步 ================= */
 function syncTimes() {
   var d = isFinite(audio.duration) ? audio.duration : 0;
   var cur = fmt(audio.currentTime);
@@ -772,6 +728,8 @@ function syncTimes() {
   }
   updateLrc();
 }
+
+/* ================= 事件绑定 ================= */
 audio.addEventListener("timeupdate", syncTimes);
 audio.addEventListener("play", function () { setPlaying(true); });
 audio.addEventListener("pause", function () { setPlaying(false); });
@@ -791,6 +749,14 @@ seekEl.addEventListener("change", function () {
   seekEl.__drag = false;
   if (isFinite(audio.duration) && audio.duration) {
     audio.currentTime = Number(seekEl.value) / 1000 * audio.duration;
+  }
+});
+var lrcSeekEl = document.getElementById("lrcSeek");
+lrcSeekEl.addEventListener("input", function () { lrcSeekEl.__drag = true; });
+lrcSeekEl.addEventListener("change", function () {
+  lrcSeekEl.__drag = false;
+  if (isFinite(audio.duration) && audio.duration) {
+    audio.currentTime = Number(lrcSeekEl.value) / 1000 * audio.duration;
   }
 });
 
@@ -823,8 +789,6 @@ document.getElementById("btnMode").onclick = function () {
   this.title = modeNames[S.mode];
 };
 document.getElementById("btnLrc").onclick = toggleList;
-
-// ---- 全屏搜索结果页控件 ----
 document.getElementById("lrcClose").onclick = closeList;
 document.getElementById("lrcPlay").onclick = function () {
   if (!audio.src) { if (S.list.length) playItem(0); return; }
@@ -838,20 +802,11 @@ document.getElementById("lrcNext").onclick = function () {
   if (!S.list.length) return;
   playItem(S.idx < S.list.length - 1 ? S.idx + 1 : 0);
 };
-var lrcSeekEl = document.getElementById("lrcSeek");
-lrcSeekEl.addEventListener("input", function () { lrcSeekEl.__drag = true; });
-lrcSeekEl.addEventListener("change", function () {
-  lrcSeekEl.__drag = false;
-  if (isFinite(audio.duration) && audio.duration) {
-    audio.currentTime = Number(lrcSeekEl.value) / 1000 * audio.duration;
-  }
-});
-// Esc 关闭全屏列表
 document.addEventListener("keydown", function (e) {
   if (e.key === "Escape" && lrcOpen) closeList();
 });
 
-// 默认搜索示例 + 进入页面立即自动搜索
+/* 进入页面自动搜索一次示例歌曲 */
 document.getElementById("kw").value = "晴天";
 search();
 </script>
@@ -859,14 +814,16 @@ search();
 </html>
 `;
 
+// ============================================================
+//  Worker 入口
+// ============================================================
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-
     if (request.method === "OPTIONS") {
       return new Response("", { status: 204, headers: CORS });
     }
-
     const p = url.pathname;
     if (p === "/" || p === "/index.html") {
       return new Response(HTML, {
@@ -874,10 +831,9 @@ export default {
       });
     }
     if (p === "/api" || p.startsWith("/api/")) return handleApi(url, env);
-    if (p === "/stream") return handleStream(url, env);
-    if (p === "/cover") return handleCover(url, env);
+    if (p === "/stream") return resolveBinary(url, env, "stream");
+    if (p === "/cover") return resolveBinary(url, env, "cover");
     if (p === "/lyric") return handleLyric(url, env);
-
     return new Response("Not Found", { status: 404, headers: CORS });
   },
 };

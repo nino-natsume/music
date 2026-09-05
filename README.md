@@ -1,6 +1,6 @@
 # ♪ Music Box —— Cloudflare Worker 音乐播放器
 
-单文件 Cloudflare Worker：API 代理 + 前端页面全部内联在 `worker.js` 中，不依赖任何本地服务。
+**单文件全功能**：`worker.js` 一个 JS 文件 = 服务端（API 代理/鉴权/流媒体）+ 完整前端（HTML/CSS/JS 全部内联）。部署即用，没有任何第二个文件。
 
 - 音乐源：网易云 / QQ音乐 / 酷狗 / 百度 / 酷我（多源自动切换）
 - 功能：搜索、播放、封面、双语歌词（原文+翻译）、封面主题色动态跟随、全屏搜索结果页、全设备自适应
@@ -10,8 +10,7 @@
 
 | 文件 | 作用 |
 |---|---|
-| `worker.js` | Worker 本体（含内联前端，部署入口） |
-| `index.html` | 前端镜像（由 worker.js 同步，无需单独部署） |
+| `worker.js` | **唯一代码文件**（Worker + 内联前端），部署入口 |
 | `wrangler.toml` | 部署配置（name / main / compatibility_date / MUSIC_TOKEN） |
 | `package.json` | Cloudflare Git 集成所需依赖与部署脚本 |
 
@@ -53,6 +52,6 @@ npx wrangler deploy
 
 ## 常见问题
 
-- **前端必须由 Worker 提供**：页面所有请求走相对路径 `/api`、`/stream`、`/cover`、`/lyric`，不要单独把 `index.html` 丢到静态托管（GitHub Pages 等），否则会 404。
+- **前端必须由 Worker 提供**：页面所有请求走相对路径 `/api`、`/stream`、`/cover`、`/lyric`，不要单独把页面拆出去做静态托管（GitHub Pages 等），否则会 404。
 - **项目名冲突**：`wrangler.toml` 中 `name = "music-player"`，若你的账户下已有同名 Worker 项目，Git 导入时会被要求重命名或选择已有项目。
 - **保持源文件纯净**：`worker.js` 内含大量 `\` 转义（正则、模板字符串），任何复制粘贴/压缩/转义工具都可能损坏它。务必走 Git 部署。
