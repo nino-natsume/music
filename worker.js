@@ -288,15 +288,6 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
 #list li .play-badge{display:none;font-size:12px;color:var(--pink-deep)}
 #list li.active .play-badge{display:inline}
 #list .empty{padding:50px 20px;text-align:center;color:var(--text2);font-size:14px}
-.lrc-bar{position:relative;z-index:2;display:flex;align-items:center;gap:12px;padding:12px 20px;padding-bottom:calc(12px + env(safe-area-inset-bottom));background:rgba(255,255,255,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--border)}
-.lrc-bar button{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background .15s,transform .15s}
-.lrc-bar button:hover{background:rgba(255,143,163,.15)}
-.lrc-bar button:active{transform:scale(.9)}
-#lrcPlay{width:46px;height:46px;background:linear-gradient(135deg,var(--pink),var(--pink2));font-size:18px;color:#fff;box-shadow:0 4px 16px rgba(255,143,163,.5)}
-#lrcPlay:hover{filter:brightness(1.06)}
-.lrc-prog{flex:1;display:flex;align-items:center;gap:8px;min-width:100px}
-.lrc-prog span{font-size:12px;color:var(--text2);font-variant-numeric:tabular-nums;min-width:38px;text-align:center}
-#lrcSeek{flex:1}
 
 /* ── 自适应：手机 / 平板 / 桌面 / 横屏 ── */
 @media (max-width:768px){
@@ -315,9 +306,6 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
   .lrc-box{padding:20px 8px}
   .lrc-line{font-size:16px}
   .lrc-line.active{font-size:20px}
-  .lrc-bar{gap:8px;padding:8px 12px}
-  .lrc-bar button{width:34px;height:34px}
-  #lrcPlay{width:42px;height:42px}
 }
 @media (max-width:560px){
   .search-bar{flex:1 1 100%;min-width:0}
@@ -342,8 +330,6 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
   .top h1{font-size:13px}
   .p-meta{max-width:70px}
   .p-ctrl{gap:0}
-  .lrc-bar button{width:30px;height:30px}
-  #lrcPlay{width:38px;height:38px}
 }
 @media (max-height:560px){
   .lrc-box{padding:10px 8px}
@@ -359,7 +345,6 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
   .lrc-overlay.hidden{display:none}
   .ov-list-wrap{margin:12px 12px 8px}
   .lrc-top{padding:14px 16px;padding-top:calc(14px + env(safe-area-inset-top))}
-  .lrc-bar{padding:10px 16px}
 }
 @media (min-width:1200px){
   .main{max-width:1400px;margin:0 auto;width:100%}
@@ -404,17 +389,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
       <div class="list-head"><b>搜索结果</b><span id="stat"></span></div>
       <ul id="list"><li class="empty">输入关键词，开始你的音乐之旅~</li></ul>
     </div>
-    <div class="lrc-bar">
-      <button id="lrcPrev" title="上一首">⏮</button>
-      <button id="lrcPlay" title="播放/暂停">▶</button>
-      <button id="lrcNext" title="下一首">⏭</button>
-      <div class="lrc-prog">
-        <span id="lrcCur">00:00</span>
-        <input id="lrcSeek" type="range" min="0" max="1000" value="0">
-        <span id="lrcDur">00:00</span>
-      </div>
     </div>
-  </div>
 </main>
 
 <footer class="player">
@@ -570,8 +545,6 @@ function playItem(i) {
 }
 function setPlaying(on) {
   document.getElementById("btnPlay").textContent = on ? "⏸" : "▶";
-  var lp = document.getElementById("lrcPlay");
-  if (lp) lp.textContent = on ? "⏸" : "▶";
 }
 
 /* ================= 封面主题色 ================= */
@@ -741,13 +714,6 @@ function syncTimes() {
   document.getElementById("dur").textContent = fmt(d);
   var seek = document.getElementById("seek");
   if (!seek.__drag) seek.value = pct;
-  var lc = document.getElementById("lrcCur");
-  if (lc) {
-    lc.textContent = cur;
-    document.getElementById("lrcDur").textContent = fmt(d);
-    var ls = document.getElementById("lrcSeek");
-    if (!ls.__drag) ls.value = pct;
-  }
   updateLrc();
 }
 
@@ -773,15 +739,6 @@ seekEl.addEventListener("change", function () {
     audio.currentTime = Number(seekEl.value) / 1000 * audio.duration;
   }
 });
-var lrcSeekEl = document.getElementById("lrcSeek");
-lrcSeekEl.addEventListener("input", function () { lrcSeekEl.__drag = true; });
-lrcSeekEl.addEventListener("change", function () {
-  lrcSeekEl.__drag = false;
-  if (isFinite(audio.duration) && audio.duration) {
-    audio.currentTime = Number(lrcSeekEl.value) / 1000 * audio.duration;
-  }
-});
-
 var volEl = document.getElementById("vol");
 volEl.addEventListener("input", function () { audio.volume = Number(volEl.value) / 100; });
 audio.volume = 0.8;
@@ -812,18 +769,6 @@ document.getElementById("btnMode").onclick = function () {
 };
 document.getElementById("btnLrc").onclick = toggleList;
 document.getElementById("lrcClose").onclick = closeList;
-document.getElementById("lrcPlay").onclick = function () {
-  if (!audio.src) { if (S.list.length) playItem(0); return; }
-  if (audio.paused) audio.play(); else audio.pause();
-};
-document.getElementById("lrcPrev").onclick = function () {
-  if (!S.list.length) return;
-  playItem(S.idx > 0 ? S.idx - 1 : S.list.length - 1);
-};
-document.getElementById("lrcNext").onclick = function () {
-  if (!S.list.length) return;
-  playItem(S.idx < S.list.length - 1 ? S.idx + 1 : 0);
-};
 document.addEventListener("keydown", function (e) {
   if (e.key === "Escape" && lrcOpen) closeList();
 });
