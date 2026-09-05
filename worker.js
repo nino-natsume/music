@@ -126,13 +126,13 @@ async function resolveBinary(url, env, kind) {
 function extractUrl(rawText) {
   const t = (rawText || "").trim();
   if (!t) return "";
-  if (/^https?:\/\//i.test(t)) return t;
+  if (/^https?:[/][/]/i.test(t)) return t;
   const scan = (o) => {
     if (o == null) return "";
-    if (typeof o === "string") return /^https?:\/\//i.test(o) ? o : "";
+    if (typeof o === "string") return /^https?:[/][/]/i.test(o) ? o : "";
     if (Array.isArray(o)) return scan(o[0]);
     if (typeof o === "object") {
-      if (o.url) { const s = String(o.url); return /^https?:\/\//i.test(s) ? s : ""; }
+      if (o.url) { const s = String(o.url); return /^https?:[/][/]/i.test(s) ? s : ""; }
       if (o.data) return scan(o.data);
       if (o.lrc) return scan(o.lrc);
       if (o["0"]) return scan(o["0"]);
@@ -614,13 +614,24 @@ function loadLrc(id) {
 }
 function parseLrc(text) {
   var rows = [];
-  var re = /\[(\d{1,2}):(\d{1,2}(?:[.:]\d{1,3})?)\]/g;
-  String(text || "").split(/\r?\n/).forEach(function (line) {
-    var m, times = [];
-    while ((m = re.exec(line)) !== null) {
-      times.push(Number(m[1]) * 60 + Number(m[2].replace(/[.:]/, ".")));
+  String(text || "").split(String.fromCharCode(10)).forEach(function (line) {
+    line = line.trim();
+    if (!line) return;
+    var times = [];
+    var rest = line;
+    while (rest.charAt(0) === "[") {
+      var end = rest.indexOf("]");
+      if (end < 0) break;
+      var tag = rest.slice(1, end);
+      var p = tag.indexOf(":");
+      if (p <= 0) break;
+      var mm = Number(tag.slice(0, p));
+      var ss = Number(tag.slice(p + 1).replace(",", "."));
+      if (!isFinite(mm) || !isFinite(ss)) break;
+      times.push(mm * 60 + ss);
+      rest = rest.slice(end + 1);
     }
-    var content = line.replace(re, "").trim();
+    var content = rest.trim();
     if (!content) content = "♪";
     if (times.length) {
       times.forEach(function (t) { rows.push({ t: t, c: content }); });
