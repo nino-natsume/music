@@ -19,7 +19,7 @@
  *                lrc/url/pic 需要 auth；留空则匿名（search/song 可用）
  *
  * 上游：https://api.107211.xyz/api
- *   server: netease | tencent | kugou | baidu | kuwo
+ *   server: netease（上游 api.107211.xyz 目前仅支持网易云）
  *   type  : search | song | album | artist | playlist | lrc | url | pic
  */
 
@@ -205,7 +205,7 @@ input,select{font:inherit;color:inherit}
 .top{display:flex;align-items:center;gap:14px;padding:12px 20px;background:rgba(255,255,255,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--border);flex-wrap:wrap;z-index:50}
 .top h1{font-size:18px;letter-spacing:1px;background:linear-gradient(90deg,var(--pink2),var(--pink-deep));-webkit-background-clip:text;background-clip:text;color:transparent;white-space:nowrap}
 .search-bar{display:flex;gap:8px;flex:1 1 260px;min-width:260px}
-.sbar select{background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 10px;color:var(--text);outline:none;box-shadow:var(--shadow-sm)}
+.src-badge{font-size:13px;color:var(--pink-deep);background:rgba(255,143,163,.12);border:1px solid rgba(255,143,163,.35);border-radius:10px;padding:8px 12px;white-space:nowrap;box-shadow:var(--shadow-sm)}
 .sbar input{flex:1;min-width:110px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 14px;color:var(--text);outline:none;transition:border-color .2s,box-shadow .2s;box-shadow:var(--shadow-sm)}
 .sbar input::placeholder{color:#b0a3a8}
 .sbar input:focus{border-color:var(--pink2);box-shadow:0 0 0 3px rgba(255,143,163,.18)}
@@ -349,13 +349,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
 <div class="top">
   <h1>♪ 次元星域音乐</h1>
   <div class="search-bar sbar">
-    <select id="selServer">
-      <option value="netease">网易云</option>
-      <option value="tencent">QQ音乐</option>
-      <option value="kugou">酷狗</option>
-      <option value="baidu">百度</option>
-      <option value="kuwo">酷我</option>
-    </select>
+    <span class="src-badge">网易云</span>
     <input id="kw" type="text" placeholder="搜索歌曲 / 歌手 / 专辑……" autocomplete="off">
     <button class="btn-pill" id="btnSearch">搜索</button>
   </div>
@@ -441,7 +435,6 @@ function songAuthor(it) {
 function search() {
   var kw = document.getElementById("kw").value.trim();
   if (!kw) return;
-  S.server = document.getElementById("selServer").value;
   document.getElementById("stat").textContent = "搜索中……";
   fetch(apiUrl("search", kw))
     .then(function (r) { return r.json(); })
@@ -737,9 +730,6 @@ audio.volume = 0.8;
 document.getElementById("btnSearch").onclick = search;
 document.getElementById("kw").addEventListener("keydown", function (e) {
   if (e.key === "Enter") search();
-});
-document.getElementById("selServer").addEventListener("change", function () {
-  S.server = this.value;
 });
 document.getElementById("btnPlay").onclick = function () {
   if (!audio.src) { if (S.list.length) playItem(0); return; }
