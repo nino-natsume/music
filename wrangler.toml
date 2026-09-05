@@ -1,0 +1,11 @@
+# Cloudflare Worker 部署配置
+# 用法：npm i -g wrangler，然后在本目录执行  wrangler deploy
+name = "music-player"
+main = "worker.js"
+compatibility_date = "2025-09-05"
+
+[vars]
+# 与 api.107211.xyz 服务商约定好的 HMAC-SHA1 密钥（用于给 lrc/url/pic 接口生成 auth）
+# auth 计算 = HMAC-SHA1(MUSIC_TOKEN, server + type + id)
+# 留空时匿名透传（search/song 可用；lrc/url/pic 会被服务商拒绝，播放会失败）
+MUSIC_TOKEN = ""
