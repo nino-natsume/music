@@ -1,13 +1,7 @@
 /**
  * 一个 worker.js 包含：服务端（API 代理/鉴权/流媒体）+ 完整前端（HTML/CSS/JS）。
- * 部署即用，无需任何本地服务、无需构建步骤。
  *
- * 部署（任选）：
- *   1) Cloudflare Dashboard → Workers & Pages → Create → Worker
- *      → 粘贴本文件全部内容 → Save and Deploy
- *   2) 或绑定 GitHub 仓库（main 分支）自动构建部署
- *
- * 端点：
+ * API：
  *   GET /            播放器页面
  *   GET /api         透明代理 https://api.107211.xyz/api（自动补 auth 与 r）
  *   GET /stream      音频流   ?server=&id=
@@ -17,10 +11,6 @@
  * 环境变量：
  *   MUSIC_TOKEN  上游服务商 HMAC-SHA1 密钥（auth = HMAC-SHA1(token, server+type+id)）
  *                lrc/url/pic 需要 auth；留空则匿名（search/song 可用）
- *
- * 上游：https://api.107211.xyz/api
- *   server: netease（上游 api.107211.xyz 目前仅支持网易云）
- *   type  : search | song | album | artist | playlist | lrc | url | pic
  */
 
 const API_BASE = "https://api.107211.xyz/api";
@@ -190,6 +180,8 @@ const HTML = `<!doctype html>
 <meta name="color-scheme" content="light">
 <meta name="theme-color" content="#ffffff">
 <meta name="format-detection" content="telephone=no">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@chinese-fonts/maple-mono-cn@2.0.0/dist/MapleMono-CN-Regular/result.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@chinese-fonts/maple-mono-cn@2.0.0/dist/MapleMono-CN-Bold/result.css">
 <title>music player</title>
 <style>
 :root{
@@ -201,12 +193,12 @@ const HTML = `<!doctype html>
   --line-strong:#c9ccd1;
   --ink:#17181a;
   --theme:#17181a; /* 封面主色，由 JS 更新 */
-  --mono:"JetBrains Maple Mono","Maple Mono",ui-monospace,"Cascadia Mono","JetBrains Mono",Consolas,monospace;
+  --mono:"Maple Mono CN","JetBrains Maple Mono","Maple Mono",ui-monospace,"Cascadia Mono","JetBrains Mono",Consolas,monospace;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%}
 body{
-  font-family:"JetBrains Maple Mono","Maple Mono",ui-monospace,"Cascadia Mono","JetBrains Mono",Consolas,monospace;
+  font-family:"Maple Mono CN","JetBrains Maple Mono","Maple Mono",ui-monospace,"Cascadia Mono","JetBrains Mono",Consolas,monospace;
   -webkit-font-smoothing:antialiased;
   background:var(--bg);color:var(--fg);
   position:fixed;inset:0;width:100%;height:100%;
