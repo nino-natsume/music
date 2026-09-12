@@ -186,21 +186,21 @@ const HTML = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#101015">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#f4f4f6">
 <title>在线音乐</title>
 <style>
 :root{
-  --bg:#101015;
-  --panel:#17171d;
-  --panel2:#1c1c23;
-  --line:rgba(255,255,255,.08);
-  --line2:rgba(255,255,255,.14);
-  --txt:#e7e7ea;
-  --txt2:#9a9aa3;
-  --txt3:#62626b;
-  --accent:#e6a23c;
-  --accent2:#d18f2c;
+  --bg:#f4f4f6;
+  --panel:#ffffff;
+  --panel2:#ececf0;
+  --line:rgba(0,0,0,.09);
+  --line2:rgba(0,0,0,.14);
+  --txt:#26262b;
+  --txt2:#6e6e77;
+  --txt3:#9c9ca4;
+  --accent:#d98e1f;
+  --accent2:#c07f16;
   --r:10px;
 }
 *{margin:0;padding:0;box-sizing:border-box}
@@ -220,7 +220,7 @@ input,select{font:inherit;color:inherit}
 .top{
   display:flex;align-items:center;gap:16px;flex-wrap:wrap;
   padding:12px 20px;
-  background:rgba(19,19,25,.94);
+  background:rgba(255,255,255,.94);
   border-bottom:1px solid var(--line);
   z-index:50;
 }
@@ -238,7 +238,7 @@ input,select{font:inherit;color:inherit}
   transition:border-color .15s,background .15s;
 }
 .sbar input::placeholder{color:var(--txt3)}
-.sbar input:focus{border-color:var(--accent);background:#202028}
+.sbar input:focus{border-color:var(--accent);background:#ffffff}
 .btn-pill{
   background:var(--accent);color:#1a140a;
   border-radius:8px;padding:8px 18px;
@@ -288,7 +288,7 @@ input,select{font:inherit;color:inherit}
   position:fixed;left:0;right:0;bottom:0;
   display:flex;align-items:center;gap:14px;flex-wrap:wrap;
   padding:10px 20px;padding-bottom:calc(10px + env(safe-area-inset-bottom));
-  background:rgba(17,17,22,.96);
+  background:rgba(255,255,255,.96);
   border-top:1px solid var(--line);
   z-index:100;
 }
@@ -305,14 +305,14 @@ input,select{font:inherit;color:inherit}
   display:flex;align-items:center;justify-content:center;color:var(--txt2);
   transition:background .15s,color .15s;
 }
-.p-ctrl button:hover{background:rgba(255,255,255,.07);color:var(--txt)}
+.p-ctrl button:hover{background:rgba(0,0,0,.06);color:var(--txt)}
 #btnPlay{width:46px;height:46px;background:var(--accent);color:#1a140a}
 #btnPlay:hover{background:var(--accent2);color:#1a140a}
 .p-prog{flex:1;display:flex;align-items:center;gap:8px;min-width:120px}
 .p-prog span{font-size:12px;color:var(--txt2);font-variant-numeric:tabular-nums;min-width:36px;text-align:center}
 input[type=range]{
   -webkit-appearance:none;appearance:none;height:4px;border-radius:2px;
-  background:rgba(255,255,255,.13);outline:none;cursor:pointer;
+  background:rgba(0,0,0,.12);outline:none;cursor:pointer;
 }
 input[type=range]::-webkit-slider-thumb{
   -webkit-appearance:none;width:12px;height:12px;border-radius:50%;
@@ -332,8 +332,8 @@ input[type=range]:hover::-moz-range-thumb,input[type=range]:focus::-moz-range-th
   display:flex;align-items:center;justify-content:center;
   transition:background .15s,color .15s;
 }
-.p-side button:hover{background:rgba(255,255,255,.07);color:var(--txt)}
-.p-side button.on{background:rgba(230,162,60,.15);color:var(--accent)}
+.p-side button:hover{background:rgba(0,0,0,.06);color:var(--txt)}
+.p-side button.on{background:rgba(217,142,31,.14);color:var(--accent)}
 
 /* ── 搜索结果覆盖层（移动端全屏 / 桌面端侧栏） ── */
 .lrc-overlay{
@@ -348,18 +348,18 @@ input[type=range]:hover::-moz-range-thumb,input[type=range]:focus::-moz-range-th
   position:absolute;inset:-40px;background-size:cover;background-position:center;
   filter:blur(46px) saturate(1.3);transform:scale(1.15);opacity:.45;
 }
-.lrc-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(15,15,20,.86),rgba(15,15,20,.95))}
+.lrc-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(242,242,245,.84),rgba(255,255,255,.95))}
 .lrc-top{
   position:relative;z-index:2;display:flex;align-items:center;gap:12px;
   padding:14px 16px;padding-top:calc(14px + env(safe-area-inset-top));
 }
 .lrc-close{
   width:34px;height:34px;border-radius:8px;flex:none;
-  background:rgba(255,255,255,.06);border:1px solid var(--line);
+  background:rgba(0,0,0,.05);border:1px solid var(--line);
   display:flex;align-items:center;justify-content:center;color:var(--txt2);
   transition:background .15s,color .15s;
 }
-.lrc-close:hover{background:rgba(255,255,255,.1);color:var(--txt)}
+.lrc-close:hover{background:rgba(0,0,0,.09);color:var(--txt)}
 .lrc-meta{min-width:0}
 .lrc-meta .t{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lrc-meta .a{font-size:12px;color:var(--txt2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -372,15 +372,15 @@ input[type=range]:hover::-moz-range-thumb,input[type=range]:focus::-moz-range-th
 }
 #list{flex:1;overflow-y:auto;padding:6px;list-style:none}
 #list::-webkit-scrollbar{width:8px}
-#list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:4px}
+#list::-webkit-scrollbar-thumb{background:rgba(0,0,0,.2);border-radius:4px}
 #list li{
   display:flex;align-items:center;gap:12px;
   padding:9px 10px;border-radius:8px;
   border-left:2px solid transparent;cursor:pointer;
   transition:background .15s;
 }
-#list li:hover{background:rgba(255,255,255,.05)}
-#list li.active{background:rgba(230,162,60,.1);border-left-color:var(--accent)}
+#list li:hover{background:rgba(0,0,0,.04)}
+#list li.active{background:rgba(217,142,31,.1);border-left-color:var(--accent)}
 #list li .num{width:22px;flex:none;text-align:center;font-size:11px;color:var(--txt3);font-variant-numeric:tabular-nums}
 #list li.active .num{color:var(--accent)}
 #list li .nm{flex:1;min-width:0}
@@ -542,7 +542,7 @@ function songAuthor(it) {
 function paintRange(el) {
   var min = parseFloat(el.min) || 0, max = parseFloat(el.max) || 100, v = parseFloat(el.value) || 0;
   var pct = max > min ? (v - min) / (max - min) * 100 : 0;
-  el.style.background = "linear-gradient(90deg,var(--accent) " + pct + "%,rgba(255,255,255,.13) " + pct + "%)";
+  el.style.background = "linear-gradient(90deg,var(--accent) " + pct + "%,rgba(0,0,0,.12) " + pct + "%)";
 }
 
 /* ================= 搜索 ================= */
@@ -635,7 +635,7 @@ function playItem(i) {
   coverEl.src = proxyUrl("cover", id);
   audio.src = proxyUrl("stream", id);
   coverEl.onload = function () { extractTheme(applyTheme); };
-  coverEl.onerror = function () { coverEl.src = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="112" height="112"><rect width="112" height="112" rx="20" fill="#18181f"/><rect x="1" y="1" width="110" height="110" rx="19" fill="none" stroke="#2a2a33" stroke-width="2"/><text x="56" y="68" font-size="34" text-anchor="middle" fill="#55555f">♪</text></svg>'); };
+  coverEl.onerror = function () { coverEl.src = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="112" height="112"><rect width="112" height="112" rx="20" fill="#ecedf1"/><rect x="1" y="1" width="110" height="110" rx="19" fill="none" stroke="#d3d4da" stroke-width="2"/><text x="56" y="68" font-size="34" text-anchor="middle" fill="#b3b4bb">♪</text></svg>'); };
   audio.play().then(function () { setPlaying(true); }).catch(function () {});
   document.getElementById("lrcNow").textContent = songTitle(it) + " - " + songAuthor(it);
   document.getElementById("lrcBg").style.backgroundImage = "url('" + proxyUrl("cover", id) + "')";
