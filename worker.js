@@ -268,7 +268,7 @@ input{font:inherit;color:inherit}
 .lrc-line.active{color:var(--fg);font-weight:700;font-size:32px;line-height:1.35}
 .lrc-line.meta{color:var(--faint);font-size:13px;cursor:default}
 .lrc-line .lc{word-break:break-word}
-.lrc-line .lt{font-size:12px;line-height:1.5;margin-top:2px;color:var(--muted)}
+.lrc-line .lt{font-size:.72em;line-height:1.45;margin-top:4px;color:var(--muted)}
 
 /* ── 搜索结果：移动端全屏覆盖 / 桌面端右侧栏 ── */
 .results{
@@ -383,7 +383,7 @@ input[type=range]::-moz-range-thumb{
   .lyrics-head{padding:8px 14px 6px}
   .lrc-box{padding:30vh 12px}
   .lrc-line{font-size:15px}
-  .lrc-line.active{font-size:30px}
+  .lrc-line.active{font-size:34px}
 }
 @media (max-width:560px){
   .search{flex:1 1 100%}
@@ -398,7 +398,7 @@ input[type=range]::-moz-range-thumb{
   #vol{display:none}
   .lrc-box{padding:26vh 10px}
   .lrc-line{font-size:15px}
-  .lrc-line.active{font-size:30px}
+  .lrc-line.active{font-size:36px}
 }
 @media (max-width:380px){
   .now .a{display:none}
@@ -406,7 +406,7 @@ input[type=range]::-moz-range-thumb{
 @media (max-height:520px){
   .lrc-box{padding:22vh 8px}
   .lrc-line{font-size:14px;padding:3px 0}
-  .lrc-line.active{font-size:28px}
+  .lrc-line.active{font-size:32px}
 }
 /* 桌面：结果区变右侧栏 */
 @media (min-width:769px){
