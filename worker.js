@@ -258,21 +258,25 @@ input{font:inherit;color:inherit}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   font-family:var(--mono);
 }
-.lrc-box{flex:1;overflow-y:auto;padding:6px 18px 20px;text-align:center}
+.lrc-box{
+  flex:1;overflow-y:auto;
+  padding:38vh 18px;
+  text-align:center;
+  scrollbar-width:none;
+}
+.lrc-box::-webkit-scrollbar{display:none}
 .lrc-line{
   display:block;width:100%;
   padding:5px 0;
   text-align:center;font-size:16px;line-height:1.5;
   color:var(--faint);cursor:pointer;
-  transition:color .15s,transform .3s;
+  transition:color .2s;
 }
 .lrc-line:hover{color:var(--fg)}
-.lrc-line.active{color:var(--fg);font-weight:600;font-size:20px;transform:scale(1.08)}
+.lrc-line.active{color:var(--fg);font-weight:700;font-size:48px;line-height:1.35}
 .lrc-line.meta{color:var(--faint);font-size:13px;cursor:default}
 .lrc-line .lc{word-break:break-word}
-.lrc-line .lt{font-size:.74em;line-height:1.5;margin-top:1px;color:var(--muted)}
-/* 音频可视化条：歌词栏底部 */
-.lyrics .viz{width:100%;height:16px;display:block;flex:none}
+.lrc-line .lt{font-size:.3em;line-height:1.5;margin-top:2px;color:var(--muted)}
 
 /* ── 搜索结果：移动端全屏覆盖 / 桌面端右侧栏 ── */
 .results{
@@ -385,9 +389,9 @@ input[type=range]::-moz-range-thumb{
   .now{width:130px}
   #vol{width:56px}
   .lyrics-head{padding:8px 14px 6px}
-  .lrc-box{padding:4px 12px 16px}
+  .lrc-box{padding:30vh 12px}
   .lrc-line{font-size:15px}
-  .lrc-line.active{font-size:18px}
+  .lrc-line.active{font-size:45px}
 }
 @media (max-width:560px){
   .search{flex:1 1 100%}
@@ -400,17 +404,17 @@ input[type=range]::-moz-range-thumb{
   .prog{order:9;flex:1 1 100%;min-width:0}
   .vol-label{display:none}
   #vol{display:none}
-.lrc-box{padding:2px 10px 14px}
+  .lrc-box{padding:26vh 10px}
   .lrc-line{font-size:15px}
-  .lrc-line.active{font-size:18px}
+  .lrc-line.active{font-size:45px}
 }
 @media (max-width:380px){
   .now .a{display:none}
 }
 @media (max-height:520px){
-  .lrc-box{padding-top:0}
+  .lrc-box{padding:22vh 8px}
   .lrc-line{font-size:14px;padding:3px 0}
-  .lrc-line.active{font-size:17px}
+  .lrc-line.active{font-size:42px}
 }
 /* 桌面：结果区变右侧栏 */
 @media (min-width:769px){
@@ -443,7 +447,6 @@ input[type=range]::-moz-range-thumb{
   <section class="lyrics" id="lrcPanelMain">
     <div class="lyrics-head" id="lrcNow">-- no song --</div>
     <div class="lrc-box" id="lrcBox"><div class="lrc-line meta">在上方搜索并播放一首歌</div></div>
-    <canvas id="viz" class="viz"></canvas>
   </section>
 
   <aside class="results hidden" id="lrcOverlay">
@@ -494,8 +497,6 @@ var modeTitles = ["顺序播放", "列表循环", "单曲循环"];
 var ICON_PLAY = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 4l14 8-14 8z"/></svg>';
 var ICON_PAUSE = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
 var ICON_BADGE = '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M6 4l14 8-14 8z"/></svg>';
-var actx = null, analyser = null, freqData = null, vizReady = false;
-var themeRGB = [23, 24, 26]; // 封面主色，默认黑，由 applyTheme 更新
 
 /* ================= 工具 ================= */
 function apiUrl(type, id) {
@@ -517,50 +518,6 @@ function paintRange(el) {
   var min = parseFloat(el.min) || 0, max = parseFloat(el.max) || 100, v = parseFloat(el.value) || 0;
   var pct = max > min ? (v - min) / (max - min) * 100 : 0;
   el.style.background = "linear-gradient(90deg,var(--theme) " + pct + "%,#e3e4e6 " + pct + "%)";
-}
-
-/* ================= 音频可视化条（WebAudio 频谱） ================= */
-function initViz() {
-  if (vizReady || !audio) return;
-  var AC = window.AudioContext || window.webkitAudioContext;
-  if (!AC) return;
-  try {
-    actx = new AC();
-    var src = actx.createMediaElementSource(audio);
-    analyser = actx.createAnalyser();
-    analyser.fftSize = 256;
-    analyser.smoothingTimeConstant = 0.82;
-    freqData = new Uint8Array(analyser.frequencyBinCount);
-    src.connect(analyser);
-    analyser.connect(actx.destination);
-    vizReady = true;
-  } catch (e) { actx = null; }
-}
-function kickViz() {
-  initViz();
-  if (actx && actx.state === "suspended") actx.resume();
-}
-function vizLoop() {
-  var c = document.getElementById("viz");
-  if (c && analyser && freqData) {
-    var w = c.clientWidth, h = c.clientHeight;
-    if (w > 0 && h > 0) {
-      if (c.width !== w) c.width = w;
-      if (c.height !== h) c.height = h;
-      var g = c.getContext("2d");
-      analyser.getByteFrequencyData(freqData);
-      g.clearRect(0, 0, w, h);
-      var n = 96;
-      var step = w / n;
-      var bw = Math.max(1, step - 1);
-      g.fillStyle = "rgba(" + themeRGB[0] + "," + themeRGB[1] + "," + themeRGB[2] + ",.8)";
-      for (var i = 0; i < n; i++) {
-        var bh = Math.max(2, (freqData[i] / 255) * (h - 2));
-        g.fillRect(i * step + (step - bw) / 2, h - bh, bw, bh);
-      }
-    }
-  }
-  requestAnimationFrame(vizLoop);
 }
 
 /* ================= 搜索 ================= */
@@ -654,7 +611,6 @@ function playItem(i) {
   audio.src = proxyUrl("stream", id);
   coverEl.onload = function () { extractTheme(applyTheme); };
   coverEl.onerror = function () { coverEl.src = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="112" height="112"><rect width="112" height="112" fill="#eceded"/><rect x="1" y="1" width="110" height="110" fill="none" stroke="#c9ccd1" stroke-width="2"/><text x="56" y="70" font-size="36" text-anchor="middle" fill="#9aa0a8">♪</text></svg>'); };
-  kickViz();
   audio.play().then(function () { setPlaying(true); }).catch(function () {});
   document.getElementById("lrcNow").textContent = songTitle(it) + " - " + songAuthor(it);
   document.getElementById("lrcBg").style.backgroundImage = "url('" + proxyUrl("cover", id) + "')";
@@ -683,7 +639,6 @@ function applyTheme(rgb) {
   var panel = document.getElementById("lrcPanelMain");
   if (!rgb || !panel) return;
   var r = rgb[0], g = rgb[1], b = rgb[2];
-  themeRGB = rgb;
   document.documentElement.style.setProperty("--theme", "rgb(" + r + "," + g + "," + b + ")");
   // 主色向白色混合 78%，得到明显但不刺眼的歌词栏底色；background-color 可平滑过渡
   var tint = function (v) { return Math.round(v + (255 - v) * 0.78); };
@@ -864,14 +819,12 @@ volEl.addEventListener("input", function () { audio.volume = Number(volEl.value)
 audio.volume = 0.8;
 paintRange(seekEl);
 paintRange(volEl);
-vizLoop();
 
 document.getElementById("btnSearch").onclick = search;
 document.getElementById("kw").addEventListener("keydown", function (e) {
   if (e.key === "Enter") search();
 });
 document.getElementById("btnPlay").onclick = function () {
-  kickViz();
   if (!audio.src) { if (S.list.length) playItem(0); return; }
   if (audio.paused) audio.play(); else audio.pause();
 };
