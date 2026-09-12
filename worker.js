@@ -22,7 +22,6 @@
  *   server: netease（上游 api.107211.xyz 目前仅支持网易云）
  *   type  : search | song | album | artist | playlist | lrc | url | pic
  */
-
 const API_BASE = "https://api.107211.xyz/api";
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36";
 const CORS = {
@@ -246,8 +245,12 @@ input{font:inherit;color:inherit}
 /* ── 主区 ── */
 .stage{flex:1;display:flex;min-height:0;overflow:hidden}
 
-/* 歌词区：纯文本，无面板 */
-.lyrics{flex:1;min-width:0;display:flex;flex-direction:column}
+/* 歌词区：纯文本，背景随封面主题色 */
+.lyrics{
+  flex:1;min-width:0;display:flex;flex-direction:column;
+  background:var(--bg);
+  transition:background-color .7s ease,box-shadow .7s ease;
+}
 .lyrics-head{
   padding:10px 18px 8px;
   font-size:12px;color:var(--faint);
@@ -613,7 +616,7 @@ function setPlaying(on) {
   document.getElementById("btnPlay").innerHTML = on ? ICON_PAUSE : ICON_PLAY;
 }
 
-/* ================= 封面主题色：只在歌词区顶部留一条细线 ================= */
+/* ================= 封面主题色：歌词栏背景染色 ================= */
 function extractTheme(cb) {
   var img = document.getElementById("cover");
   if (!img || !img.naturalWidth) { cb(null); return; }
@@ -632,7 +635,10 @@ function applyTheme(rgb) {
   var panel = document.getElementById("lrcPanelMain");
   if (!rgb || !panel) return;
   var r = rgb[0], g = rgb[1], b = rgb[2];
-  panel.style.boxShadow = "inset 0 2px 0 rgba(" + r + "," + g + "," + b + ",.45)";
+  // 主色向白色混合 88%，得到柔和底色；background-color 可平滑过渡
+  var tint = function (v) { return Math.round(v + (255 - v) * 0.88); };
+  panel.style.backgroundColor = "rgb(" + tint(r) + "," + tint(g) + "," + tint(b) + ")";
+  panel.style.boxShadow = "inset 0 2px 0 rgba(" + r + "," + g + "," + b + ",.35)";
 }
 
 /* ================= 歌词（双语） ================= */
