@@ -200,6 +200,7 @@ const HTML = `<!doctype html>
   --line:#e3e4e6;
   --line-strong:#c9ccd1;
   --ink:#17181a;
+  --theme:#17181a; /* 封面主色，由 JS 更新 */
   --mono:ui-monospace,"SF Mono","Cascadia Mono","JetBrains Mono",Consolas,monospace;
 }
 *{margin:0;padding:0;box-sizing:border-box}
@@ -241,7 +242,6 @@ input{font:inherit;color:inherit}
   padding:6px 16px;font-size:14px;
 }
 .search button:hover{background:var(--ink);color:#fff;border-color:var(--ink)}
-.src{font-family:var(--mono);font-size:11px;color:var(--faint);white-space:nowrap}
 
 /* ── 主区 ── */
 .stage{flex:1;display:flex;min-height:0;overflow:hidden}
@@ -345,8 +345,8 @@ input{font:inherit;color:inherit}
 .ctrl button:hover{border-color:var(--line-strong);background:#f2f3f5}
 #btnPlay{width:40px;height:40px;background:var(--ink);color:#fff}
 #btnPlay:hover{border-color:var(--ink);background:var(--ink)}
-.prog{flex:1;display:flex;flex-direction:column;gap:3px;min-width:120px}
-.viz{width:100%;height:20px;display:block;background:transparent}
+.prog{flex:1;display:flex;flex-direction:column;gap:1px;min-width:120px}
+.viz{width:100%;height:14px;display:block;background:transparent}
 .prog-row{display:flex;align-items:center;gap:10px;min-width:0}
 .time{
   font-family:var(--mono);font-size:12px;color:var(--muted);
@@ -354,16 +354,16 @@ input{font:inherit;color:inherit}
 }
 input[type=range]{
   -webkit-appearance:none;appearance:none;
-  height:3px;border-radius:2px;
+  height:3px;border-radius:3px;
   background:#e3e4e6;outline:none;cursor:pointer;
 }
 input[type=range]::-webkit-slider-thumb{
-  -webkit-appearance:none;width:13px;height:13px;border-radius:50%;
-  background:var(--ink);border:2px solid var(--bg);
+  -webkit-appearance:none;width:11px;height:11px;border-radius:50%;
+  background:var(--theme);border:2px solid var(--bg);
 }
 input[type=range]::-moz-range-thumb{
-  width:9px;height:9px;border:2px solid var(--bg);border-radius:50%;
-  background:var(--ink);
+  width:8px;height:8px;border:2px solid var(--bg);border-radius:50%;
+  background:var(--theme);
 }
 #seek{flex:1}
 #vol{width:70px}
@@ -380,7 +380,6 @@ input[type=range]::-moz-range-thumb{
 /* ── 自适应 ── */
 @media (max-width:768px){
   .toolbar{gap:10px;padding:8px 12px}
-  .src{display:none}
   .player{gap:10px;padding:7px 12px}
   .player .cover{width:40px;height:40px}
   .now{width:130px}
@@ -438,7 +437,6 @@ input[type=range]::-moz-range-thumb{
     <input id="kw" type="search" placeholder="歌名 / 歌手 / 专辑" autocomplete="off" enterkeyhint="search">
     <button id="btnSearch">搜索</button>
   </div>
-  <span class="src">netease</span>
 </header>
 
 <main class="stage">
@@ -499,6 +497,7 @@ var ICON_PLAY = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentCo
 var ICON_PAUSE = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
 var ICON_BADGE = '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M6 4l14 8-14 8z"/></svg>';
 var actx = null, analyser = null, freqData = null, vizReady = false;
+var themeRGB = [23, 24, 26]; // 封面主色，默认黑，由 applyTheme 更新
 
 /* ================= 工具 ================= */
 function apiUrl(type, id) {
@@ -519,7 +518,7 @@ function songAuthor(it) {
 function paintRange(el) {
   var min = parseFloat(el.min) || 0, max = parseFloat(el.max) || 100, v = parseFloat(el.value) || 0;
   var pct = max > min ? (v - min) / (max - min) * 100 : 0;
-  el.style.background = "linear-gradient(90deg,var(--ink) " + pct + "%,#e3e4e6 " + pct + "%)";
+  el.style.background = "linear-gradient(90deg,var(--theme) " + pct + "%,#e3e4e6 " + pct + "%)";
 }
 
 /* ================= 音频可视化条（WebAudio 频谱） ================= */
@@ -553,10 +552,10 @@ function vizLoop() {
       var g = c.getContext("2d");
       analyser.getByteFrequencyData(freqData);
       g.clearRect(0, 0, w, h);
-      var n = 48;
+      var n = 56;
       var step = w / n;
-      var bw = Math.max(1, step - 3);
-      g.fillStyle = "rgba(23,24,26,.85)";
+      var bw = Math.max(1, step - 2);
+      g.fillStyle = "rgba(" + themeRGB[0] + "," + themeRGB[1] + "," + themeRGB[2] + ",.8)";
       for (var i = 0; i < n; i++) {
         var bh = Math.max(2, (freqData[i] / 255) * (h - 2));
         g.fillRect(i * step + (step - bw) / 2, h - bh, bw, bh);
@@ -686,6 +685,8 @@ function applyTheme(rgb) {
   var panel = document.getElementById("lrcPanelMain");
   if (!rgb || !panel) return;
   var r = rgb[0], g = rgb[1], b = rgb[2];
+  themeRGB = rgb;
+  document.documentElement.style.setProperty("--theme", "rgb(" + r + "," + g + "," + b + ")");
   // 主色向白色混合 78%，得到明显但不刺眼的歌词栏底色；background-color 可平滑过渡
   var tint = function (v) { return Math.round(v + (255 - v) * 0.78); };
   panel.style.backgroundColor = "rgb(" + tint(r) + "," + tint(g) + "," + tint(b) + ")";
