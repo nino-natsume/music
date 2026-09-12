@@ -264,13 +264,15 @@ input{font:inherit;color:inherit}
   padding:5px 0;
   text-align:center;font-size:16px;line-height:1.5;
   color:var(--faint);cursor:pointer;
-  transition:color .12s;
+  transition:color .15s,transform .3s;
 }
 .lrc-line:hover{color:var(--fg)}
-.lrc-line.active{color:var(--fg);font-weight:600;font-size:20px}
+.lrc-line.active{color:var(--fg);font-weight:600;font-size:20px;transform:scale(1.08)}
 .lrc-line.meta{color:var(--faint);font-size:13px;cursor:default}
 .lrc-line .lc{word-break:break-word}
 .lrc-line .lt{font-size:.74em;line-height:1.5;margin-top:1px;color:var(--muted)}
+/* 音频可视化条：歌词栏底部 */
+.lyrics .viz{width:100%;height:16px;display:block;flex:none}
 
 /* ── 搜索结果：移动端全屏覆盖 / 桌面端右侧栏 ── */
 .results{
@@ -345,9 +347,7 @@ input{font:inherit;color:inherit}
 .ctrl button:hover{border-color:var(--line-strong);background:#f2f3f5}
 #btnPlay{width:40px;height:40px;background:var(--ink);color:#fff}
 #btnPlay:hover{border-color:var(--ink);background:var(--ink)}
-.prog{flex:1;display:flex;flex-direction:column;gap:1px;min-width:120px}
-.viz{width:100%;height:14px;display:block;background:transparent}
-.prog-row{display:flex;align-items:center;gap:10px;min-width:0}
+.prog{flex:1;display:flex;align-items:center;gap:10px;min-width:120px}
 .time{
   font-family:var(--mono);font-size:12px;color:var(--muted);
   min-width:30px;text-align:center;font-variant-numeric:tabular-nums;
@@ -443,6 +443,7 @@ input[type=range]::-moz-range-thumb{
   <section class="lyrics" id="lrcPanelMain">
     <div class="lyrics-head" id="lrcNow">-- no song --</div>
     <div class="lrc-box" id="lrcBox"><div class="lrc-line meta">在上方搜索并播放一首歌</div></div>
+    <canvas id="viz" class="viz"></canvas>
   </section>
 
   <aside class="results hidden" id="lrcOverlay">
@@ -470,12 +471,9 @@ input[type=range]::-moz-range-thumb{
     <button id="btnNext" title="下一首">»</button>
   </div>
   <div class="prog">
-    <canvas id="viz" class="viz"></canvas>
-    <div class="prog-row">
-      <span class="time" id="cur">0:00</span>
-      <input id="seek" type="range" min="0" max="1000" value="0">
-      <span class="time" id="dur">0:00</span>
-    </div>
+    <span class="time" id="cur">0:00</span>
+    <input id="seek" type="range" min="0" max="1000" value="0">
+    <span class="time" id="dur">0:00</span>
   </div>
   <div class="extras">
     <span class="vol-label">vol</span>
@@ -530,7 +528,7 @@ function initViz() {
     actx = new AC();
     var src = actx.createMediaElementSource(audio);
     analyser = actx.createAnalyser();
-    analyser.fftSize = 128;
+    analyser.fftSize = 256;
     analyser.smoothingTimeConstant = 0.82;
     freqData = new Uint8Array(analyser.frequencyBinCount);
     src.connect(analyser);
@@ -552,9 +550,9 @@ function vizLoop() {
       var g = c.getContext("2d");
       analyser.getByteFrequencyData(freqData);
       g.clearRect(0, 0, w, h);
-      var n = 56;
+      var n = 96;
       var step = w / n;
-      var bw = Math.max(1, step - 2);
+      var bw = Math.max(1, step - 1);
       g.fillStyle = "rgba(" + themeRGB[0] + "," + themeRGB[1] + "," + themeRGB[2] + ",.8)";
       for (var i = 0; i < n; i++) {
         var bh = Math.max(2, (freqData[i] / 255) * (h - 2));
@@ -784,6 +782,7 @@ function renderLrc() {
     d.onclick = function () { if (it.t >= 0) audio.currentTime = it.t; };
     box.appendChild(d);
   });
+  updateLrc(); // 渲染完立即定位当前行到中间
 }
 function updateLrc() {
   if (!S.lrc.length) return;
