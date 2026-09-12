@@ -22,6 +22,7 @@
  *   server: netease（上游 api.107211.xyz 目前仅支持网易云）
  *   type  : search | song | album | artist | playlist | lrc | url | pic
  */
+
 const API_BASE = "https://api.107211.xyz/api";
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36";
 const CORS = {
@@ -266,7 +267,7 @@ input{font:inherit;color:inherit}
   transition:color .12s;
 }
 .lrc-line:hover{color:var(--fg)}
-.lrc-line.active{color:var(--fg);font-weight:600}
+.lrc-line.active{color:var(--fg);font-weight:600;font-size:20px}
 .lrc-line.meta{color:var(--faint);font-size:13px;cursor:default}
 .lrc-line .lc{word-break:break-word}
 .lrc-line .lt{font-size:.74em;line-height:1.5;margin-top:1px;color:var(--muted)}
@@ -344,7 +345,9 @@ input{font:inherit;color:inherit}
 .ctrl button:hover{border-color:var(--line-strong);background:#f2f3f5}
 #btnPlay{width:40px;height:40px;background:var(--ink);color:#fff}
 #btnPlay:hover{border-color:var(--ink);background:var(--ink)}
-.prog{flex:1;display:flex;align-items:center;gap:10px;min-width:120px}
+.prog{flex:1;display:flex;flex-direction:column;gap:3px;min-width:120px}
+.viz{width:100%;height:20px;display:block;background:transparent}
+.prog-row{display:flex;align-items:center;gap:10px;min-width:0}
 .time{
   font-family:var(--mono);font-size:12px;color:var(--muted);
   min-width:30px;text-align:center;font-variant-numeric:tabular-nums;
@@ -385,7 +388,7 @@ input[type=range]::-moz-range-thumb{
   .lyrics-head{padding:8px 14px 6px}
   .lrc-box{padding:4px 12px 16px}
   .lrc-line{font-size:15px}
-  .lrc-line.active{font-size:16px}
+  .lrc-line.active{font-size:18px}
 }
 @media (max-width:560px){
   .search{flex:1 1 100%}
@@ -398,10 +401,9 @@ input[type=range]::-moz-range-thumb{
   .prog{order:9;flex:1 1 100%;min-width:0}
   .vol-label{display:none}
   #vol{display:none}
-  .lrc-box{padding:2px 10px 14px}
+.lrc-box{padding:2px 10px 14px}
   .lrc-line{font-size:15px}
-  .lrc-line.active{font-size:16px}
-  .song-list li{padding:9px 14px 9px 10px}
+  .lrc-line.active{font-size:18px}
 }
 @media (max-width:380px){
   .now .a{display:none}
@@ -409,7 +411,7 @@ input[type=range]::-moz-range-thumb{
 @media (max-height:520px){
   .lrc-box{padding-top:0}
   .lrc-line{font-size:14px;padding:3px 0}
-  .lrc-line.active{font-size:15px}
+  .lrc-line.active{font-size:17px}
 }
 /* 桌面：结果区变右侧栏 */
 @media (min-width:769px){
@@ -470,9 +472,12 @@ input[type=range]::-moz-range-thumb{
     <button id="btnNext" title="下一首">»</button>
   </div>
   <div class="prog">
-    <span class="time" id="cur">0:00</span>
-    <input id="seek" type="range" min="0" max="1000" value="0">
-    <span class="time" id="dur">0:00</span>
+    <canvas id="viz" class="viz"></canvas>
+    <div class="prog-row">
+      <span class="time" id="cur">0:00</span>
+      <input id="seek" type="range" min="0" max="1000" value="0">
+      <span class="time" id="dur">0:00</span>
+    </div>
   </div>
   <div class="extras">
     <span class="vol-label">vol</span>
@@ -482,7 +487,7 @@ input[type=range]::-moz-range-thumb{
   </div>
 </footer>
 
-<audio id="audio" preload="metadata"></audio>
+<audio id="audio" preload="metadata" crossorigin="anonymous"></audio>
 
 <script>
 /* ================= 状态 ================= */
@@ -493,6 +498,7 @@ var modeTitles = ["顺序播放", "列表循环", "单曲循环"];
 var ICON_PLAY = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 4l14 8-14 8z"/></svg>';
 var ICON_PAUSE = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
 var ICON_BADGE = '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M6 4l14 8-14 8z"/></svg>';
+var actx = null, analyser = null, freqData = null, vizReady = false;
 
 /* ================= 工具 ================= */
 function apiUrl(type, id) {
@@ -514,6 +520,50 @@ function paintRange(el) {
   var min = parseFloat(el.min) || 0, max = parseFloat(el.max) || 100, v = parseFloat(el.value) || 0;
   var pct = max > min ? (v - min) / (max - min) * 100 : 0;
   el.style.background = "linear-gradient(90deg,var(--ink) " + pct + "%,#e3e4e6 " + pct + "%)";
+}
+
+/* ================= 音频可视化条（WebAudio 频谱） ================= */
+function initViz() {
+  if (vizReady || !audio) return;
+  var AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  try {
+    actx = new AC();
+    var src = actx.createMediaElementSource(audio);
+    analyser = actx.createAnalyser();
+    analyser.fftSize = 128;
+    analyser.smoothingTimeConstant = 0.82;
+    freqData = new Uint8Array(analyser.frequencyBinCount);
+    src.connect(analyser);
+    analyser.connect(actx.destination);
+    vizReady = true;
+  } catch (e) { actx = null; }
+}
+function kickViz() {
+  initViz();
+  if (actx && actx.state === "suspended") actx.resume();
+}
+function vizLoop() {
+  var c = document.getElementById("viz");
+  if (c && analyser && freqData) {
+    var w = c.clientWidth, h = c.clientHeight;
+    if (w > 0 && h > 0) {
+      if (c.width !== w) c.width = w;
+      if (c.height !== h) c.height = h;
+      var g = c.getContext("2d");
+      analyser.getByteFrequencyData(freqData);
+      g.clearRect(0, 0, w, h);
+      var n = 48;
+      var step = w / n;
+      var bw = Math.max(1, step - 3);
+      g.fillStyle = "rgba(23,24,26,.85)";
+      for (var i = 0; i < n; i++) {
+        var bh = Math.max(2, (freqData[i] / 255) * (h - 2));
+        g.fillRect(i * step + (step - bw) / 2, h - bh, bw, bh);
+      }
+    }
+  }
+  requestAnimationFrame(vizLoop);
 }
 
 /* ================= 搜索 ================= */
@@ -607,6 +657,7 @@ function playItem(i) {
   audio.src = proxyUrl("stream", id);
   coverEl.onload = function () { extractTheme(applyTheme); };
   coverEl.onerror = function () { coverEl.src = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="112" height="112"><rect width="112" height="112" fill="#eceded"/><rect x="1" y="1" width="110" height="110" fill="none" stroke="#c9ccd1" stroke-width="2"/><text x="56" y="70" font-size="36" text-anchor="middle" fill="#9aa0a8">♪</text></svg>'); };
+  kickViz();
   audio.play().then(function () { setPlaying(true); }).catch(function () {});
   document.getElementById("lrcNow").textContent = songTitle(it) + " - " + songAuthor(it);
   document.getElementById("lrcBg").style.backgroundImage = "url('" + proxyUrl("cover", id) + "')";
@@ -635,10 +686,10 @@ function applyTheme(rgb) {
   var panel = document.getElementById("lrcPanelMain");
   if (!rgb || !panel) return;
   var r = rgb[0], g = rgb[1], b = rgb[2];
-  // 主色向白色混合 88%，得到柔和底色；background-color 可平滑过渡
-  var tint = function (v) { return Math.round(v + (255 - v) * 0.88); };
+  // 主色向白色混合 78%，得到明显但不刺眼的歌词栏底色；background-color 可平滑过渡
+  var tint = function (v) { return Math.round(v + (255 - v) * 0.78); };
   panel.style.backgroundColor = "rgb(" + tint(r) + "," + tint(g) + "," + tint(b) + ")";
-  panel.style.boxShadow = "inset 0 2px 0 rgba(" + r + "," + g + "," + b + ",.35)";
+  panel.style.boxShadow = "inset 0 2px 0 rgba(" + r + "," + g + "," + b + ",.55)";
 }
 
 /* ================= 歌词（双语） ================= */
@@ -813,12 +864,14 @@ volEl.addEventListener("input", function () { audio.volume = Number(volEl.value)
 audio.volume = 0.8;
 paintRange(seekEl);
 paintRange(volEl);
+vizLoop();
 
 document.getElementById("btnSearch").onclick = search;
 document.getElementById("kw").addEventListener("keydown", function (e) {
   if (e.key === "Enter") search();
 });
 document.getElementById("btnPlay").onclick = function () {
+  kickViz();
   if (!audio.src) { if (S.list.length) playItem(0); return; }
   if (audio.paused) audio.play(); else audio.pause();
 };
