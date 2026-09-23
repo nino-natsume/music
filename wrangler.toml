@@ -1,11 +1,27 @@
-# Cloudflare Worker 部署配置
-# 用法：npm i -g wrangler，然后在本目录执行  wrangler deploy
+# Cloudflare Workers 配置 —— 云音乐播放器
+# 部署：
+#   npm i -g wrangler
+#   wrangler login
+#   wrangler deploy
+# 本地预览：
+#   直接浏览器打开 index.html（自动直连 https://api.107211.xyz）
+
 name = "music-player"
 main = "worker.js"
-compatibility_date = "2025-09-05"
+compatibility_date = "2025-01-01"
 
-[vars]
-# 与 api.107211.xyz 服务商约定好的 HMAC-SHA1 密钥（用于给 lrc/url/pic 接口生成 auth）
-# auth 计算 = HMAC-SHA1(MUSIC_TOKEN, server + type + id)
-# 留空时匿名透传（search/song 可用；lrc/url/pic 会被服务商拒绝，播放会失败）
-MUSIC_TOKEN = ""
+# 可选：绑定自定义域名（把 music.107211.xyz 解析到本 Worker）
+# routes = [
+#   { pattern = "music.107211.xyz/*", zone_name = "107211.xyz" }
+# ]
+
+# 可选：如需上游鉴权（api.107211.xyz 要求时）——
+# 不要写进本文件，用命令设置：
+#   wrangler secret put MUSIC_TOKEN
+# [vars]
+
+# 说明：
+# - worker.js 由 build.js 从 index.html 自动生成
+# - 修改页面样式/逻辑后：改 index.html → 运行 `node build.js` → `wrangler deploy`
+# - 登录使用 oauth.107211.xyz（GitHub / Twitter / Microsoft），
+#   登录后会自动带参数跳回本页面展示用户信息
