@@ -83,6 +83,18 @@ async function handleApi(url, env) {
   const server = url.searchParams.get("server") || "netease";
   const type = url.searchParams.get("type") || "search";
   const id = url.searchParams.get("id") || "";
+  const cacheable = type === "search" || type === "playlist";
+  let cache = null;
+  if (cacheable && typeof caches !== "undefined") {
+    try {
+      cache = caches.default;
+      const ck = new Request(API_BASE + "?s=" + server + "&t=" + type + "&i=" + id);
+      const hit = await cache.match(ck);
+      if (hit) return hit;
+    } catch (e) {
+      cache = null;
+    }
+  }
   const up = buildUpstream(server, type, id);
   if (["lrc", "url", "pic"].includes(type)) {
     const auth = await makeAuth(env, server, type, id);
@@ -92,6 +104,17 @@ async function handleApi(url, env) {
   const h = withCors(resp);
   h.delete("content-encoding");
   h.delete("content-length");
+  if (cache && cacheable && resp.ok) {
+    try {
+      const body = await resp.clone().arrayBuffer();
+      const nh = new Headers(h);
+      nh.set("Cache-Control", "public, max-age=300");
+      const nresp = new Response(body, { status: resp.status, headers: nh });
+      await cache.put(ck, nresp.clone());
+      return nresp;
+    } catch (e) {
+    }
+  }
   h.set("Cache-Control", "no-store");
   return new Response(resp.body, { status: resp.status, headers: h });
 }

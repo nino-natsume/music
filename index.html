@@ -113,23 +113,23 @@ img{display:block}
 .view.on{display:block;animation:fadeUp .22s ease}
 @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
-/* ================= 轮播 ================= */
-.hero{position:relative;height:clamp(180px,26vw,264px);margin:16px 16px 0;border-radius:8px;overflow:hidden;
-  border:1px solid var(--line2)}
-.hero .slide{position:absolute;inset:0;opacity:0;transition:opacity .7s ease;cursor:pointer}
-.hero .slide.on{opacity:1}
-.hero .slide .bg{position:absolute;inset:-16px;background-size:cover;background-position:center;filter:blur(22px) brightness(.5) saturate(.95);transform:scale(1.06)}
-.hero .slide .scrim{position:absolute;inset:0;background:linear-gradient(90deg,rgba(16,13,8,.78) 0%,rgba(16,13,8,.35) 55%,rgba(16,13,8,.06) 100%)}
-.hero .slide .cap{position:absolute;left:30px;right:120px;bottom:24px;color:#fff;z-index:2}
-.hero .slide .lab{font-family:var(--mono);font-size:10px;letter-spacing:.28em;color:rgba(255,255,255,.72);margin-bottom:7px}
-.hero .slide .t{font-family:var(--serif);font-size:clamp(22px,3.6vw,32px);font-weight:700;letter-spacing:.05em;line-height:1.2;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hero .slide .s{margin-top:7px;font-size:13px;color:rgba(255,255,255,.82);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hero .slide .play{margin-top:14px;width:32px;height:32px;border-radius:4px;background:var(--acc);display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.35)}
-.hero .slide .play svg{width:15px;height:15px;color:#fff;margin-left:1px}
-.hero .dots{position:absolute;right:18px;bottom:16px;display:flex;gap:6px;z-index:3}
-.hero .dots i{width:8px;height:8px;background:rgba(255,255,255,.45);transition:.25s;cursor:pointer}
-.hero .dots i.on{width:20px;background:#fff}
+/* ================= 轮播（杂志头条式） ================= */
+.hero{position:relative;height:clamp(216px,29vw,292px);margin:14px 16px 0;
+  background:var(--card);border:1px solid var(--line);border-radius:0}
+.hero .slide{position:absolute;inset:0;display:none;cursor:pointer;overflow:hidden}
+.hero .slide.on{display:flex;animation:fadeUp .35s ease}
+.hero .slide .bg{position:absolute;left:0;top:0;bottom:0;width:60%;background-size:cover;background-position:center;border-right:4px solid var(--acc)}
+.hero .slide .scrim{display:none}
+.hero .slide .cap{position:relative;margin-left:60%;padding:20px 22px 26px;display:flex;flex-direction:column;justify-content:center;min-width:0}
+.hero .slide .lab{font-family:var(--mono);font-size:10px;letter-spacing:.3em;color:var(--acc);margin-bottom:10px;text-transform:uppercase}
+.hero .slide .t{font-family:var(--serif);font-size:clamp(21px,3vw,28px);font-weight:700;letter-spacing:.03em;line-height:1.28;color:var(--ink);
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.hero .slide .s{margin-top:8px;font-size:12px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hero .slide .play{margin-top:16px;width:30px;height:30px;border-radius:3px;background:var(--acc);display:flex;align-items:center;justify-content:center}
+.hero .slide .play svg{width:14px;height:14px;color:#fff;margin-left:1px}
+.hero .dots{position:absolute;right:14px;bottom:10px;display:flex;gap:6px;z-index:3}
+.hero .dots i{width:7px;height:7px;background:var(--ink3);transition:.25s;cursor:pointer}
+.hero .dots i.on{width:18px;background:var(--acc)}
 
 /* ================= 区块 ================= */
 .sec{padding:22px 16px 2px}
@@ -149,6 +149,8 @@ img{display:block}
 .gcard .im{position:relative;width:122px;height:122px;border-radius:4px;overflow:hidden;background:#e6dfd2;
   border:1px solid var(--line2);transition:border-color .18s}
 .gcard:hover .im{border-color:var(--acc)}
+.gcard .im .no{position:absolute;left:0;top:0;z-index:2;padding:3px 6px;font-family:var(--mono);font-size:10px;color:#fff;
+  background:var(--ink);letter-spacing:.08em}
 .gcard .im img{width:100%;height:100%;object-fit:cover;transition:transform .3s}
 .gcard:hover .im img{transform:scale(1.05)}
 .gcard .im .go{
@@ -162,33 +164,33 @@ img{display:block}
   font-feature-settings:"kern" 1;letter-spacing:.01em}
 .gcard .au{margin-top:2px;font-size:11px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-/* 推荐歌单 */
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:18px 14px;padding-bottom:4px}
-.pcard{cursor:pointer}
-.pcard .im{position:relative;width:100%;aspect-ratio:1;border-radius:4px;overflow:hidden;background:#e6dfd2;
-  border:1px solid var(--line2);transition:border-color .18s}
+/* 推荐歌单（报纸列表式） */
+.grid{display:flex;flex-direction:column;padding-bottom:2px}
+.pcard{display:flex;align-items:center;gap:12px;padding:9px 4px;cursor:pointer;border-bottom:1px dashed var(--line);min-width:0}
+.pcard:first-child{border-top:1px solid var(--line)}
+.pcard:hover{background:var(--acc-l)}
+.pcard .no{width:22px;flex:none;font-family:var(--mono);font-size:12px;font-weight:700;color:var(--ink3);text-align:right}
+.pcard:hover .no{color:var(--acc)}
+.pcard .im{position:relative;width:44px;height:44px;flex:none;overflow:hidden;background:#e6dfd2;border:1px solid var(--line2)}
 .pcard:hover .im{border-color:var(--acc)}
-.pcard .im img{width:100%;height:100%;object-fit:cover;transition:transform .3s}
-.pcard:hover .im img{transform:scale(1.04)}
+.pcard .im img{width:100%;height:100%;object-fit:cover}
 .pcard .im .pl{
-  position:absolute;left:0;top:0;height:19px;padding:2px 26px 2px 7px;color:#fff;font-family:var(--mono);
-  font-size:10px;letter-spacing:.06em;background:linear-gradient(90deg,rgba(18,15,10,.65),transparent);display:flex;align-items:center;gap:4px;
+  position:absolute;left:-1px;top:-1px;height:15px;padding:1px 14px 1px 5px;color:#fff;font-family:var(--mono);
+  font-size:8px;letter-spacing:.04em;background:var(--ink);display:flex;align-items:center;gap:3px;
 }
-.pcard .im .pl svg{width:10px;height:10px}
-.pcard .im .go{
-  position:absolute;right:6px;bottom:6px;width:30px;height:30px;border-radius:4px;opacity:0;transform:translateY(4px);transition:.18s;
-  background:rgba(20,16,10,.72);display:flex;align-items:center;justify-content:center;color:#fff;
-}
-.pcard:hover .im .go{opacity:1;transform:none}
-.pcard .im .go svg{width:15px;height:15px}
-.pcard .tt{margin-top:8px;font-size:13px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.pcard .sub{margin-top:2px;font-family:var(--mono);font-size:10px;color:var(--ink3);letter-spacing:.04em}
+.pcard .im .pl svg{width:8px;height:8px}
+.pcard .im .go{position:absolute;right:0;bottom:0;width:18px;height:18px;background:rgba(20,16,10,.7);display:flex;align-items:center;justify-content:center;color:#fff;opacity:0}
+.pcard:hover .im .go{opacity:1}
+.pcard .im .go svg{width:10px;height:10px}
+.pcard .tt{flex:1;min-width:0;font-family:var(--serif);font-size:15px;font-weight:700;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .sub{flex:none;max-width:34%;font-family:var(--mono);font-size:10px;color:var(--ink3);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:560px){.pcard .sub{display:none}}
 
 /* 排行榜 */
 .rank-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:2px 2px 18px}
 @media (max-width:760px){.rank-row{grid-template-columns:1fr}}
-.rank{background:var(--card);border:1px solid var(--line);border-radius:6px;overflow:hidden}
-.rank-h{padding:13px 15px 10px;display:flex;align-items:center;gap:10px;cursor:pointer;border-bottom:1px solid var(--line)}
+.rank{background:transparent;border:1px solid var(--line);border-radius:0;overflow:hidden}
+.rank-h{padding:12px 14px 9px;display:flex;align-items:center;gap:10px;cursor:pointer;border-bottom:3px double var(--ink)}
 .rank-h .tt{font-family:var(--serif);font-size:16px;font-weight:700;letter-spacing:.04em}
 .rank-h .round{width:38px;height:38px;border-radius:4px;overflow:hidden;flex:none;border:1px solid var(--line2)}
 .rank-h .round img{width:100%;height:100%;object-fit:cover}
@@ -492,7 +494,7 @@ img{display:block}
       <button id="btnNext" title="下一首"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2z"/><path d="M7 6.5v11c.8-.7 2-2 2-5.5S7.8 7.2 7 6.5z"/></svg></button>
     </div>
     <div class="p-side">
-      <span class="tm"><span id="curTime">0:00</span> / <span id="durTime">0:00</span></span>
+      <span class="tm"><span id="curTime">00:00</span> / <span id="durTime">00:00</span></span>
       <button class="more-btn" id="btnQueue" title="播放列表"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h16"/></svg></button>
     </div>
   </div>
@@ -512,11 +514,11 @@ img{display:block}
   <div class="hint" id="lyrHint">轻触歌词行可跳转</div>
   <div class="lyr-prog" id="lyrProg"><div class="fill" id="lyrProgFill"></div><div class="knob"></div></div>
   <div class="bottom">
-    <span class="tm" id="lyrCur">0:00</span>
+    <span class="tm" id="lyrCur">00:00</span>
     <button class="sbtn" id="btnLyrPrev"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6z"/><path d="M17 6.5v11c.8-.7 2-2 2-5.5s-1.2-4.8-2-5.5z"/></svg></button>
     <button class="sbtn play" id="btnLyrPlay"><svg id="lyrPlayIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
     <button class="sbtn" id="btnLyrNext"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2z"/><path d="M7 6.5v11c.8-.7 2-2 2-5.5S7.8 7.2 7 6.5z"/></svg></button>
-    <span class="tm" id="lyrDur">0:00</span>
+    <span class="tm" id="lyrDur">00:00</span>
   </div>
 </div>
 
@@ -577,7 +579,7 @@ function lrcUrl(id) {
 function $(id) { return document.getElementById(id); }
 function fmt(sec) {
   sec = Math.max(0, Math.floor(sec || 0));
-  return Math.floor(sec / 60) + ":" + ("0" + (sec % 60)).slice(-2);
+  return ("0" + Math.floor(sec / 60)).slice(-2) + ":" + ("0" + (sec % 60)).slice(-2);
 }
 function hash(s) {
   var h = 0, i, c;
@@ -610,10 +612,16 @@ function toList(data) {
   return out;
 }
 function getJSON(url, tries) {
-  tries = (tries == null) ? 2 : tries;
-  return fetch(url).then(function (r) { return r.json(); }).catch(function (err) {
+  tries = (tries == null) ? 1 : tries;
+  var ctrl = new AbortController();
+  var timer = window.setTimeout(function () { ctrl.abort(); }, 8000);
+  return fetch(url, { signal: ctrl.signal }).then(function (r) {
+    window.clearTimeout(timer);
+    return r.json();
+  }).catch(function (err) {
+    window.clearTimeout(timer);
     if (tries > 0) {
-      return new Promise(function (res) { setTimeout(res, 450); }).then(function () { return getJSON(url, tries - 1); });
+      return new Promise(function (res) { setTimeout(res, 400); }).then(function () { return getJSON(url, tries - 1); });
     }
     throw err;
   });
@@ -637,8 +645,8 @@ var PLAYLISTS = [
   { id: "3136952023", name: "私人雷达 · 每日推荐", desc: "为你精选" },
   { id: "5177516720", name: "私人漫游", desc: "随机好歌" }
 ];
-var GUESS_KEYWORDS = ["热歌", "流行", "经典老歌", "周杰伦", "陈奕迅", "邓紫棋", "许嵩", "毛不易"];
-var plInfo = {}, guessList = [], heroList = [];
+var GUESS_KEYWORDS = ["米津玄師", "YOASOBI", "Aimer", "LiSA", "宇多田ヒカル", "星野源", "Official髭男dism", "King Gnu", "Vaundy", "藤井風"];
+var plInfo = {}, guessList = [], heroList = [], homePls = [];
 
 function plName(id) {
   for (var i = 0; i < PLAYLISTS.length; i++) if (PLAYLISTS[i].id === id) return PLAYLISTS[i].name;
@@ -658,33 +666,50 @@ function fetchPlaylist(pl, cb) {
   });
 }
 function fetchGuess(cb) {
-  var used = {}, jobs = [];
-  GUESS_KEYWORDS.forEach(function (kw) {
-    jobs.push(getJSON(apiUrl("search", kw)).then(function (data) {
-      var arr = Array.isArray(data) ? data : ((data && data.data) || []);
-      for (var i = 0; i < arr.length && guessList.length < 24; i++) {
-        var it = mapItem(arr[i], i);
-        if (used[it.id]) continue;
-        used[it.id] = 1;
-        guessList.push(it);
-      }
-    }).catch(function () {}));
-  });
-  Promise.all(jobs).then(function () { cb && cb(); });
+  guessList.length = 0;
+  var used = {}, done = 0, running = 0, total = GUESS_KEYWORDS.length, cursor = 0, finished = false;
+  function worker() {
+    while (running < 3 && cursor < total && guessList.length < 24) {
+      (function (i) {
+        var kw = GUESS_KEYWORDS[i];
+        running++;
+        cursor++;
+        getJSON(apiUrl("search", kw)).then(function (data) {
+          var arr = Array.isArray(data) ? data : ((data && data.data) || []);
+          for (var j = 0; j < arr.length && guessList.length < 24; j++) {
+            var it = mapItem(arr[j], j);
+            if (used["id:" + it.id]) continue;
+            used["id:" + it.id] = 1;
+            guessList.push(it);
+          }
+        }).catch(function () {}).then(function () {
+          running--;
+          done++;
+          worker();
+        });
+      })(cursor);
+    }
+    if (!finished && (done >= total || guessList.length >= 24)) {
+      finished = true;
+      cb && cb();
+    }
+  }
+  worker();
 }
 function loadHome() {
-  var jobs = [];
+  homePls.length = 0;
   PLAYLISTS.forEach(function (pl) {
-    jobs.push(new Promise(function (res) { fetchPlaylist(pl, res); }));
+    fetchPlaylist(pl, function () {
+      homePls.push(pl);
+      bumpHome();
+    });
   });
-  jobs.push(new Promise(function (res) { fetchGuess(res); }));
-  Promise.all(jobs).then(renderHome);
+  fetchGuess(function () { renderGuess(); });
 }
-function renderHome() {
-  var pls = PLAYLISTS.filter(function (p) { return p.list && p.list.length; });
+function bumpHome() {
+  var pls = homePls.filter(function (p) { return p.list && p.list.length; });
   heroList = pls.slice(0, 4);
   renderHero();
-  renderGuess();
   renderPlGrid();
   renderRank(pls);
 }
@@ -738,7 +763,8 @@ function renderGuess() {
     var d = document.createElement("div");
     d.className = "gcard";
     d.innerHTML =
-      '<div class="im"><img src="' + escAttr(it.pic) + '" loading="lazy" alt="">' +
+      '<div class="im"><span class="no">' + ("0" + (i + 1)).slice(-2) + '</span>' +
+      '<img src="' + escAttr(it.pic) + '" loading="lazy" alt="">' +
       '<div class="go"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div></div>' +
       '<div class="tt">' + escText(it.title) + '</div>' +
       '<div class="au">' + escText(it.author) + '</div>';
@@ -757,10 +783,12 @@ function renderPlGrid() {
     if (rt) rt.onclick = function () { loadHome(); };
     return;
   }
-  pls.forEach(function (pl) {
+  pls.forEach(function (pl, pi) {
     var d = document.createElement("div");
     d.className = "pcard";
+    var no = ("0" + (pi + 1)).slice(-2);
     d.innerHTML =
+      '<span class="no">' + no + '</span>' +
       '<div class="im"><div class="pl"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 2v5c-.8-.3-1.6-.5-2.5-.5C5.4 6.5 2.6 9 2.6 12s2.8 5.5 5.9 5.5S14.4 15 14.4 12c0-1.4-.5-2.7-1.4-3.7V2h-2zm6.4 3.6l-2 2c2.3 1.9 3.6 4.7 3.6 7.4 0 2.3-.9 4.4-2.4 6l2 2a11 11 0 0 0 3.4-8c0-3.5-1.7-6.7-4.6-9.4z"/></svg>歌单</div>' +
       '<img src="' + escAttr(pl.cover || "") + '" loading="lazy" alt="">' +
       '<div class="go"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div></div>' +
@@ -930,13 +958,13 @@ function escAttr(s) {
 
 /* ---------- 播放 ---------- */
 function setQueue(list, idx) {
-  S.list = list;
+  S.list = list.slice();
   S.idx = -1;
   renderQueue();
   playItem(idx);
 }
 function playFromList(list, idx) {
-  S.list = list;
+  S.list = list.slice();
   renderQueue();
   playItem(idx);
   highlightLists();
