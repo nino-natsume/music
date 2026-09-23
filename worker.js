@@ -1206,21 +1206,6 @@ var withCors = /* @__PURE__ */ __name((resp) => {
   h.set("Access-Control-Allow-Origin", "*");
   return h;
 }, "withCors");
-/* —— 页面 HTML：gzip 压缩（一次性）+ 边缘可缓存 —— */
-var HTML_GZ = null;
-var HTML_GZ_OK = typeof CompressionStream !== "undefined";
-async function buildHtml() {
-  if (!HTML_GZ_OK) return null;
-  if (HTML_GZ) return HTML_GZ;
-  try {
-    const stream = new Blob([HTML]).stream().pipeThrough(new CompressionStream("gzip"));
-    HTML_GZ = await new Response(stream).arrayBuffer();
-  } catch (e) {
-    return null;
-  }
-  return HTML_GZ;
-}
-__name(buildHtml, "buildHtml");
 /* —— 缓存卫生：按 x-cache-until 清理过期条目（10 分钟节流，静默失败） —— */
 var lastCleaned = 0;
 async function cleanCaches() {
@@ -1443,9 +1428,10 @@ var worker_default = {
     }
     const p = url.pathname;
     if (p === "/" || p === "/index.html") {
-      const gz = await buildHtml();
+      // 回退：不再 gzip 压缩 HTML。
+      // 曾用 CompressionStream 压缩并以 content-encoding:gzip 返回，但未检查
+      // Accept-Encoding，导致未声明 gzip 的客户端收到压缩字节 → 整页乱码。
       const hb = { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300, s-maxage=300", ...CORS };
-      if (gz) return new Response(gz, { headers: { ...hb, "content-encoding": "gzip", "vary": "Accept-Encoding" } });
       return new Response(HTML, { headers: hb });
     }
     if (p === "/api" || p.startsWith("/api/")) return handleApi(url, env);
