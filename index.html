@@ -164,50 +164,38 @@ img{display:block}
   font-feature-settings:"kern" 1;letter-spacing:.01em}
 .gcard .au{margin-top:2px;font-size:11px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-/* 推荐歌单（报纸列表式） */
-.grid{display:flex;flex-direction:column;padding-bottom:2px}
-.pcard{display:flex;align-items:center;gap:12px;padding:9px 4px;cursor:pointer;border-bottom:1px dashed var(--line);min-width:0}
-.pcard:first-child{border-top:1px solid var(--line)}
-.pcard:hover{background:var(--acc-l)}
-.pcard .no{width:22px;flex:none;font-family:var(--mono);font-size:12px;font-weight:700;color:var(--ink3);text-align:right}
-.pcard:hover .no{color:var(--acc)}
-.pcard .im{position:relative;width:44px;height:44px;flex:none;overflow:hidden;background:#e6dfd2;border:1px solid var(--line2)}
-.pcard:hover .im{border-color:var(--acc)}
-.pcard .im img{width:100%;height:100%;object-fit:cover}
-.pcard .im .pl{
-  position:absolute;left:-1px;top:-1px;height:15px;padding:1px 14px 1px 5px;color:#fff;font-family:var(--mono);
-  font-size:8px;letter-spacing:.04em;background:var(--ink);display:flex;align-items:center;gap:3px;
-}
-.pcard .im .pl svg{width:8px;height:8px}
-.pcard .im .go{position:absolute;right:0;bottom:0;width:18px;height:18px;background:rgba(20,16,10,.7);display:flex;align-items:center;justify-content:center;color:#fff;opacity:0}
+/* 歌单广场：方块网格 */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;padding-bottom:6px}
+@media (max-width:380px){.grid{grid-template-columns:repeat(2,1fr)}}
+.pcard{position:relative;cursor:pointer;min-width:0;background:var(--card);border:1px solid var(--line);padding:7px;transition:border-color .12s,background .12s}
+.pcard:hover{border-color:var(--acc);background:var(--acc-l)}
+.pcard .no{position:absolute;left:8px;top:8px;z-index:3;padding:2px 5px;font-family:var(--mono);font-size:10px;font-weight:700;color:#fff;background:rgba(20,16,10,.55);letter-spacing:.04em}
+.pcard .tag{position:absolute;right:8px;top:8px;z-index:3;padding:2px 7px;font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:#fff}
+.pcard .im{position:relative;width:100%;aspect-ratio:1/1;overflow:hidden;background:#e6dfd2}
+.pcard .im img{width:100%;height:100%;object-fit:cover;transition:transform .3s}
+.pcard:hover .im img{transform:scale(1.04)}
+.pcard .im .go{position:absolute;right:6px;bottom:6px;width:26px;height:26px;background:var(--acc);display:flex;align-items:center;justify-content:center;color:#fff;opacity:0;transition:opacity .15s}
 .pcard:hover .im .go{opacity:1}
-.pcard .im .go svg{width:10px;height:10px}
-.pcard .tt{flex:1;min-width:0;font-family:var(--serif);font-size:15px;font-weight:700;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pcard .sub{flex:none;max-width:34%;font-family:var(--mono);font-size:10px;color:var(--ink3);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-@media (max-width:560px){.pcard .sub{display:none}}
+.pcard .im .go svg{width:13px;height:13px}
+.pcard .tt{margin-top:8px;font-family:var(--serif);font-size:15px;font-weight:700;letter-spacing:.02em;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pcard .sub{margin-top:3px;font-family:var(--mono);font-size:10px;color:var(--ink3);letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-/* 排行榜 */
+/* 排行榜：方块式 */
 .rank-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:2px 2px 18px}
 @media (max-width:760px){.rank-row{grid-template-columns:1fr}}
-.rank{background:transparent;border:1px solid var(--line);border-radius:0;overflow:hidden}
-.rank-h{padding:12px 14px 9px;display:flex;align-items:center;gap:10px;cursor:pointer;border-bottom:3px double var(--ink)}
-.rank-h .tt{font-family:var(--serif);font-size:16px;font-weight:700;letter-spacing:.04em}
-.rank-h .round{width:38px;height:38px;border-radius:4px;overflow:hidden;flex:none;border:1px solid var(--line2)}
-.rank-h .round img{width:100%;height:100%;object-fit:cover}
-.rank ul{list-style:none}
-.rank li{display:flex;align-items:center;gap:10px;padding:7px 15px;cursor:pointer;transition:background .12s;border-bottom:1px dashed var(--line)}
-.rank li:last-child{border-bottom:none}
-.rank li:hover{background:var(--acc-l)}
-.rank li .no{width:16px;text-align:center;font-family:var(--mono);font-size:12px;font-weight:700;color:var(--ink3)}
-.rank li:nth-child(1) .no,.rank li:nth-child(2) .no,.rank li:nth-child(3) .no{color:var(--acc)}
-.rank li .nm{flex:1;min-width:0}
-.rank li .nm .t{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rank li .nm .s{font-family:var(--mono);font-size:10px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
-.rank li .ic{width:22px;height:22px;color:var(--acc);opacity:0;flex:none}
-.rank li:hover .ic{opacity:1}
-.rank li .ic svg{width:16px;height:16px}
-.rank .more{padding:8px 15px 10px;font-family:var(--mono);font-size:11px;color:var(--ink3);cursor:pointer;letter-spacing:.04em}
-.rank .more:hover{color:var(--acc)}
+.rank{position:relative;background:var(--card);border:1px solid var(--line);padding:7px;cursor:pointer;transition:border-color .12s,background .12s}
+.rank:hover{border-color:var(--acc);background:var(--acc-l)}
+.rank .r-im{position:relative;width:100%;aspect-ratio:1/1;overflow:hidden;background:#e6dfd2}
+.rank .r-im img{width:100%;height:100%;object-fit:cover;transition:transform .3s}
+.rank:hover .r-im img{transform:scale(1.04)}
+.rank .r-no{position:absolute;left:6px;top:6px;font-family:var(--serif);font-size:26px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5);line-height:1}
+.rank .r-im .go{position:absolute;right:6px;bottom:6px;width:26px;height:26px;background:var(--acc);display:flex;align-items:center;justify-content:center;color:#fff;opacity:0;transition:opacity .15s}
+.rank:hover .r-im .go{opacity:1}
+.rank .r-im .go svg{width:13px;height:13px}
+.rank .r-tt{margin-top:8px;font-family:var(--serif);font-size:16px;font-weight:700;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rank .r-sub{margin-top:2px;font-family:var(--mono);font-size:10px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rank .r-more{margin-top:8px;padding-top:7px;border-top:1px dashed var(--line);font-family:var(--mono);font-size:11px;color:var(--ink3);letter-spacing:.04em;transition:color .12s}
+.rank:hover .r-more{color:var(--acc)}
 
 /* 站点脚注 */
 .site-foot{
@@ -435,7 +423,7 @@ img{display:block}
     <div class="row" id="guessRow"><div class="sec-load">加载中…</div></div>
   </div>
   <div class="sec" id="sec_playlists">
-    <div class="sec-h"><h2>推荐歌单</h2><span class="sub">EDITOR'S</span><span class="more" id="morePls">全部 ›</span></div>
+    <div class="sec-h"><h2>歌单广场</h2><span class="sub">MIXED PLAYLISTS</span><span class="more" id="morePls">全部 ›</span></div>
     <div class="grid" id="plGrid"><div class="sec-load">加载中…</div></div>
   </div>
   <div class="sec" id="sec_rank">
@@ -485,7 +473,7 @@ img{display:block}
     <div class="p-now" id="nowBtn">
       <div class="lab" id="nowLab">NOW PLAYING</div>
       <div class="t" id="nowTitle">还没想好听什么</div>
-      <div class="s"><span id="nowAuthor">去「猜你想听」「推荐歌单」发现好音乐</span></div>
+      <div class="s"><span id="nowAuthor">去「猜你想听」「歌单广场」发现好音乐</span></div>
     </div>
     <div class="p-ctrl">
       <button class="mode" id="btnMode" title="播放模式">顺序</button>
@@ -638,13 +626,16 @@ var ICON_PAUSE = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v1
 
 /* ---------- 首页数据 ---------- */
 var PLAYLISTS = [
-  { id: "3778678", name: "云音乐飙升榜", desc: "实时更新 · 飙升热歌" },
-  { id: "19723756", name: "云音乐热歌榜", desc: "大家都在听" },
-  { id: "3779629", name: "云音乐新歌榜", desc: "新鲜出炉" },
-  { id: "2884035", name: "云音乐原创榜", desc: "原创力量" },
-  { id: "3136952023", name: "私人雷达 · 每日推荐", desc: "为你精选" },
-  { id: "5177516720", name: "私人漫游", desc: "随机好歌" }
+  { id: "pl-rank-3778678", pid: "3778678", name: "飙升榜", desc: "实时更新 · 飙升热歌", tag: "榜单", kind: "rank" },
+  { id: "pl-rank-19723756", pid: "19723756", name: "热歌榜", desc: "大家都在听", tag: "榜单", kind: "rank" },
+  { id: "pl-rank-3779629", pid: "3779629", name: "新歌榜", desc: "新鲜出炉", tag: "榜单", kind: "rank" },
+  { id: "pl-kw-huayu", name: "华语精选", desc: "周杰伦 · 林俊杰 · 陈奕迅", tag: "华语", kind: "kw", kw: "周杰伦" },
+  { id: "pl-kw-riyu", name: "日系精选", desc: "宇多田ヒカル · 米津玄師", tag: "日系", kind: "kw", kw: "宇多田ヒカル" },
+  { id: "pl-kw-acg", name: "ACG 集锦", desc: "动漫主题曲大赏", tag: "ACG", kind: "kw", kw: "动漫" },
+  { id: "pl-kw-lite", name: "纯音乐精选", desc: "安静的白噪音", tag: "轻音", kind: "kw", kw: "纯音乐" },
+  { id: "pl-kw-edm", name: "电子 · 燃曲", desc: "节奏感拉满", tag: "电音", kind: "kw", kw: "电音" }
 ];
+var TAG_COLORS = { "华语": "#bd2417", "日系": "#d05c26", "ACG": "#8a4bab", "轻音": "#3f7d8c", "电音": "#5a7a2f", "榜单": "#211c15" };
 var GUESS_KEYWORDS = ["米津玄師", "YOASOBI", "Aimer", "LiSA", "宇多田ヒカル", "星野源", "Official髭男dism", "King Gnu", "Vaundy", "藤井風"];
 var plInfo = {}, guessList = [], heroList = [], homePls = [];
 
@@ -653,7 +644,10 @@ function plName(id) {
   return "歌单";
 }
 function fetchPlaylist(pl, cb) {
-  getJSON(apiUrl("playlist", pl.id)).then(function (data) {
+  var pr = pl.kind === "kw"
+    ? getJSON(apiUrl("search", pl.kw), 2)
+    : getJSON(apiUrl("playlist", pl.pid || pl.id));
+  pr.then(function (data) {
     pl.list = toList(data);
     pl.cover = pl.list.length ? pl.list[0].pic : "";
     plInfo[pl.id] = pl;
@@ -786,14 +780,16 @@ function renderPlGrid() {
   pls.forEach(function (pl, pi) {
     var d = document.createElement("div");
     d.className = "pcard";
+    var tagc = TAG_COLORS[pl.tag] || "#211c15";
     var no = ("0" + (pi + 1)).slice(-2);
     d.innerHTML =
       '<span class="no">' + no + '</span>' +
-      '<div class="im"><div class="pl"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 2v5c-.8-.3-1.6-.5-2.5-.5C5.4 6.5 2.6 9 2.6 12s2.8 5.5 5.9 5.5S14.4 15 14.4 12c0-1.4-.5-2.7-1.4-3.7V2h-2zm6.4 3.6l-2 2c2.3 1.9 3.6 4.7 3.6 7.4 0 2.3-.9 4.4-2.4 6l2 2a11 11 0 0 0 3.4-8c0-3.5-1.7-6.7-4.6-9.4z"/></svg>歌单</div>' +
+      '<span class="tag" style="background:' + tagc + '">' + escText(pl.tag || "歌单") + '</span>' +
+      '<div class="im">' +
       '<img src="' + escAttr(pl.cover || "") + '" loading="lazy" alt="">' +
       '<div class="go"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div></div>' +
       '<div class="tt">' + escText(pl.name) + '</div>' +
-      '<div class="sub">' + escText(pl.list[0] ? pl.list[0].author : "") + '</div>';
+      '<div class="sub">' + escText(pl.desc || "") + '</div>';
     d.onclick = function () { showPlDetail(pl.id); };
     grid.appendChild(d);
   });
@@ -802,35 +798,24 @@ function renderPlGrid() {
 function renderRank(pls) {
   var row = $("rankRow");
   row.innerHTML = "";
-  var top3 = pls.slice(0, 3);
+  var top3 = pls.filter(function (p) { return p.kind === "rank"; }).slice(0, 3);
   if (!top3.length) {
     row.innerHTML = '<div class="sec-err">排行榜加载失败，点击 <span class="rt" id="rtRank">重试</span></div>';
     var rt = $("rtRank");
     if (rt) rt.onclick = function () { loadHome(); };
     return;
   }
-  top3.forEach(function (pl) {
+  top3.forEach(function (pl, ri) {
     var rank = document.createElement("div");
     rank.className = "rank";
-    var ul = document.createElement("ul");
-    var n = Math.min(10, pl.list.length);
-    for (var i = 0; i < n; i++) {
-      var it = pl.list[i];
-      var li = document.createElement("li");
-      li.innerHTML =
-        '<span class="no">' + (i + 1) + '</span>' +
-        '<div class="nm"><div class="t">' + escText(it.title) + '</div><div class="s">' + escText(it.author) + '</div></div>' +
-        '<span class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>';
-      li.onclick = function () { setQueue(pl.list, i); };
-      ul.appendChild(li);
-    }
-    var more = document.createElement("div");
-    more.className = "more";
-    more.textContent = "查看全部 ›";
-    more.onclick = function () { showPlDetail(pl.id); };
-    rank.innerHTML = '<div class="rank-h"><span class="round"><img src="' + escAttr(pl.cover || "") + '" alt=""></span><span class="tt">' + escText(pl.name) + '</span></div>';
-    rank.appendChild(ul);
-    rank.appendChild(more);
+    rank.innerHTML =
+      '<div class="r-im"><img src="' + escAttr(pl.cover || "") + '" loading="lazy" alt="">' +
+      '<span class="r-no">' + (ri + 1) + '</span>' +
+      '<span class="go"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span></div>' +
+      '<div class="r-tt">' + escText(pl.name) + '</div>' +
+      '<div class="r-sub">' + escText(pl.desc || "热门榜单") + '</div>' +
+      '<div class="r-more">点开看全部 ›</div>';
+    rank.onclick = function () { showPlDetail(pl.id); };
     row.appendChild(rank);
   });
   plImgFallback(row);
@@ -873,11 +858,13 @@ function renderPlsGrid() {
   pls.forEach(function (pl) {
     var d = document.createElement("div");
     d.className = "pcard";
+    var tagc = TAG_COLORS[pl.tag] || "#211c15";
     d.innerHTML =
       '<div class="im"><img src="' + escAttr(pl.cover || "") + '" loading="lazy" alt="">' +
+      '<span class="tag" style="background:' + tagc + '">' + escText(pl.tag || "歌单") + '</span>' +
       '<div class="go"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div></div>' +
       '<div class="tt">' + escText(pl.name) + '</div>' +
-      '<div class="sub">' + (pl.list[0] ? pl.list[0].author : "") + '</div>';
+      '<div class="sub">' + escText(pl.desc || "") + '</div>';
     d.onclick = function () { showPlDetail(pl.id); };
     grid.appendChild(d);
   });
