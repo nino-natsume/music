@@ -969,6 +969,32 @@ function playFromList(list, idx) {
   playItem(idx);
   highlightLists();
 }
+function onPlayFail(err) {
+  var now = Date.now();
+  if (S.failAt && now - S.failAt < 1500) return;
+  S.failAt = now;
+  if (err && err.name === "NotAllowedError") { setPlaying(false); return; }
+  var code = audio.error ? audio.error.code : 0;
+  var msg = "播放出错，请尝试切换其他歌曲";
+  if (code === 2) msg = "网络异常，音乐加载失败";
+  else if (code === 3) msg = "音频解码失败";
+  else if (code === 4) msg = "该音乐源暂不支持播放";
+  toast(msg);
+  setPlaying(false);
+  var hadSrc = !!audio.src;
+  audio.removeAttribute("src");
+  try { audio.load(); } catch (e) {}
+  if (hadSrc && !(S.mode === 2) && S.list.length > 1) {
+    S.failGuard = (S.failGuard || 0) + 1;
+    if (S.failGuard <= 2) {
+      var next = S.idx + 1;
+      if (next >= S.list.length) next = 0;
+      setTimeout(function () { playItem(next); }, 1200);
+      return;
+    }
+  }
+  S.failGuard = 0;
+}
 function playItem(i) {
   var it = S.list[i];
   if (!it) return;
@@ -984,7 +1010,7 @@ function playItem(i) {
   var ci = $("coverImg");
   ci.onerror = function () { ci.src = placeholderSrc(); };
   audio.src = streamUrl(it.id);
-  audio.play().then(function () { setPlaying(true); }).catch(function () {});
+  audio.play().then(function () { setPlaying(true); }).catch(function (err) { onPlayFail(err); });
   loadLrc(it.id);
   highlightLists();
   $("coverBtn").classList.add("live");
@@ -1337,12 +1363,10 @@ $("btnCloseLogin").onclick = closeLogin;
 $("loginLayer").addEventListener("click", function (e) { if (e.target === this) closeLogin(); });
 
 audio.addEventListener("timeupdate", onTime);
-audio.addEventListener("play", function () { setPlaying(true); });
-audio.addEventListener("pause", function () { setPlaying(false); });
-audio.addEventListener("ended", onEnded);
-audio.addEventListener("error", function () {
-  if (audio.src && !S.muted) toast("播放出错，请尝试切换其他歌曲");
-});
+audio.addEventListener("play", function () { S.failGuard = 0; setPlaying(true); });
+  audio.addEventListener("pause", function () { setPlaying(false); });
+  audio.addEventListener("ended", onEnded);
+  audio.addEventListener("error", function () { onPlayFail(); });
 window.addEventListener("resize", function () { scrollLrc(); });
 document.addEventListener("keydown", function (e) {
   if (e.key === "Escape") {
