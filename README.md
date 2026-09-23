@@ -1,12 +1,14 @@
-# ♪ Online-Music —— 基于Cloudflare Worker 部署的音乐播放器
+# ♪ 次元星域音乐（Jigen_Seiki-Music） —— 基于Cloudflare Worker 部署的音乐播放器
 
 ## 示例站点
+
+**V1.1版本大更新！！添加更多功能、完善网站样式、支持登录保存进度等！**
 
 [音乐播放器（https://music.107211.xyz）](https://music.107211.xyz)
 
 如果觉得好可以⭐star嘛~
 
-用的我自己免费的 Meting API，要用自己的API的话在 `worker.js` 文件的第一行改，改域名即可
+用的我自己免费的 Meting API，要用自己的API的话在 `worker.js` 文件内改，改域名即可
 
 需确保你自己部署的API支持网易云音乐，否则修改后无法使用
 
