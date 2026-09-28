@@ -33,7 +33,57 @@
   --mono:"SFMono-Regular","JetBrains Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
   --g1:linear-gradient(135deg,#ff9a4d,var(--acc) 55%,#ad3c03);
   --gbd:linear-gradient(135deg,rgba(232,89,12,.95),rgba(255,196,140,.5),rgba(232,89,12,.3));
+  --ok:#1f9d55;
+  --bad:#d64545;
 }
+/* ================= 播放状态弹窗（结构参考 OAuth 登录结果弹窗） ================= */
+#statusModal{
+  position:fixed;inset:0;z-index:1200;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(51,48,42,.32);
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .32s ease,visibility .32s ease;
+}
+#statusModal.show{opacity:1;visibility:visible}
+#statusModal .sm-box{
+  position:relative;min-width:206px;max-width:76vw;
+  background:var(--card);border-radius:18px;
+  padding:30px 26px 22px;text-align:center;
+  box-shadow:0 24px 58px rgba(80,62,35,.26),0 2px 6px rgba(80,62,35,.12);
+  transform:translateY(28px) scale(.82);
+  transition:transform .48s cubic-bezier(.34,1.56,.64,1);
+}
+#statusModal.show .sm-box{transform:translateY(0) scale(1)}
+#statusModal.fail.show .sm-box{animation:smShake .45s ease .85s}
+@keyframes smShake{
+  0%,100%{transform:translateX(0)}
+  20%{transform:translateX(-8px)}
+  40%{transform:translateX(8px)}
+  60%{transform:translateX(-5px)}
+  80%{transform:translateX(5px)}
+}
+.sm-icon{width:66px;height:66px;margin:0 auto 12px}
+.sm-icon svg{width:100%;height:100%;display:block}
+.sm-icon .c{stroke-width:3;fill:none;stroke-dasharray:151;stroke-dashoffset:151;animation:smStroke .55s cubic-bezier(.65,0,.45,1) forwards .18s}
+.sm-icon .m{stroke-width:3.5;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:48;stroke-dashoffset:48;animation:smStroke .35s cubic-bezier(.65,0,.45,1) forwards .55s}
+@keyframes smStroke{to{stroke-dashoffset:0}}
+#statusModal.ok .sm-icon .c,#statusModal.ok .sm-icon .m{stroke:var(--ok)}
+#statusModal.fail .sm-icon .c{stroke:var(--bad)}
+#statusModal.fail .sm-icon .m{stroke:var(--bad);stroke-dasharray:70;stroke-dashoffset:70}
+#statusModal.tip .sm-icon .c,#statusModal.tip .sm-icon .m{stroke:var(--acc)}
+#statusModal.ok .sm-title{color:var(--ok)}
+#statusModal.fail .sm-title{color:var(--bad)}
+#statusModal.tip .sm-title{color:var(--acc)}
+/* 加载态：静态浅色轨道 + 旋转弧 */
+#statusModal.load .sm-icon .c{stroke:rgba(232,89,12,.2);stroke-dasharray:none;stroke-dashoffset:0;animation:none}
+#statusModal.load .sm-icon .m{stroke-dasharray:74 77;stroke-dashoffset:0;animation:none}
+#statusModal.load .sm-icon .m.spin{animation:smSpin 1s linear infinite}
+@keyframes smSpin{to{transform:rotate(360deg)}}
+.sm-title{font-size:16px;font-weight:600;line-height:1.5}
+.sm-sub{margin-top:5px;font-size:13px;color:#8d8475;line-height:1.5}
+.sm-bar{margin:14px 4px 0;height:3px;border-radius:999px;background:rgba(232,89,12,.15);overflow:hidden}
+.sm-bar i{display:block;height:100%;width:34%;border-radius:999px;background:var(--g1);animation:smSlide 1.15s ease-in-out infinite}
+@keyframes smSlide{0%{transform:translateX(-110%)}100%{transform:translateX(400%)}}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
 body{
@@ -614,14 +664,17 @@ var DEFAULT_ART = "https://t.alcy.cc/tx";
 
 var API_HOST = (location.hostname.indexOf("107211.xyz") >= 0) ? "" : "https://api.107211.xyz";
 
-function apiUrl(type, id, server) {
+function apiUrl(type, id, server, r) {
   var p = "api?server=" + (server || S.server) + "&type=" + encodeURIComponent(type) + "&id=" + encodeURIComponent(id);
+  if (r) p += "&r=" + encodeURIComponent(r);
   return API_HOST ? (API_HOST + "/" + p) : ("/" + p);
 }
-/* r：自建部署下 0 走 /api 代理，1 走 /stream（带 Range、可解析 JSON 里的真实地址） */
+/* r：自建部署下 0 走 /api 代理，1 走 /stream（带 Range、可解析 JSON 里的真实地址）
+   重试时附加 r 随机值，避免反复命中同一个已失效的缓存地址 */
 function streamUrl(id, server, r) {
-  if (API_HOST) return apiUrl("url", id, server);
-  if (r) return "/stream?server=" + (server || S.server) + "&id=" + encodeURIComponent(id);
+  var bust = r ? String(Date.now() % 1000000) : "";
+  if (API_HOST) return apiUrl("url", id, server, bust);
+  if (r) return "/stream?server=" + (server || S.server) + "&id=" + encodeURIComponent(id) + (bust ? "&r=" + bust : "");
   return apiUrl("url", id, server);
 }
 function coverUrl(id, server) {
@@ -648,7 +701,7 @@ function idFromUrl(u) {
   var s = String(u || "");
   var i = s.indexOf("id=");
   if (i < 0) return "";
-  return s.slice(i + 3).replace(/[^0-9].*$/, "");
+  try { return decodeURIComponent(s.slice(i + 3).split("&")[0] || ""); } catch (e) { return s.slice(i + 3).split("&")[0] || ""; }
 }
 function mapItem(raw, i, server) {
   raw = raw || {};
@@ -752,8 +805,64 @@ function renderSonglist(ul, list) {
 }
 
 /* ---------- 播放（加载失败 → 重试 → 换源，不再直接跳下一首） ---------- */
-var SERVERS = ["netease", "tencent", "kugou", "baidu", "kuwo"];
-var SRC_NAMES = { netease: "网易云", tencent: "QQ音乐", kugou: "酷狗", baidu: "百度", kuwo: "酷我" };
+/* 候选音源。Meting 各平台可用性随部署/上游而变（QQ 上游搜索接口已挂），
+   所以不写死可用列表，而是首次换源时实测「按关键词搜索」这项能力再决定用谁。 */
+var CANDIDATES = [
+  { s: "netease", name: "网易云" },
+  { s: "tencent", name: "QQ音乐" },
+  { s: "kugou", name: "酷狗" },
+  { s: "kuwo", name: "酷我" },
+  { s: "baidu", name: "百度" }
+];
+var SRC_NAMES = {};
+(function () { for (var i = 0; i < CANDIDATES.length; i++) SRC_NAMES[CANDIDATES[i].s] = CANDIDATES[i].name; })();
+var CAP_KEY = "mm_srcs_v1";
+var CAP_TTL = 30 * 60 * 1000;
+var CAP = { list: null, pending: null };
+
+function readCap() {
+  try {
+    var o = JSON.parse(sessionStorage.getItem(CAP_KEY) || "null");
+    if (!o || !Array.isArray(o.list) || !o.list.length) return null;
+    if (Date.now() - (o.at || 0) > CAP_TTL) return null;
+    return o.list;
+  } catch (e) { return null; }
+}
+function writeCap(list) {
+  try { sessionStorage.setItem(CAP_KEY, JSON.stringify({ list: list, at: Date.now() })); } catch (e) {}
+}
+/* 探测只验「搜索」这一项能力：换源完全依赖它，搜不到的平台留着也没用
+   每个探测单独限时，免得某个平台挂起时把整轮探测拖死 */
+function probeServer(c) {
+  var ctrl = new AbortController();
+  var timer = setTimeout(function () { ctrl.abort(); }, 6000);
+  return fetch(apiUrl("search", "周杰伦", c.s), { signal: ctrl.signal })
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(0); })
+    .then(function (d) { return (Array.isArray(d) && d.length) ? c.s : null; })
+    .catch(function () { return null; })
+    .then(function (v) { clearTimeout(timer); return v; });
+}
+function ensureSources(cb) {
+  var cached = CAP.list && CAP.list.length ? CAP.list : readCap();
+  if (cached && cached.length) { CAP.list = cached; cb(cached); return; }
+  if (CAP.pending) { CAP.pending.push(cb); return; }
+  CAP.pending = [cb];
+  var done = function (res) {
+    var list = [];
+    for (var i = 0; i < res.length; i++) if (res[i]) list.push(res[i]);
+    if (!list.length) list = [S.server || "netease"];
+    CAP.list = list;
+    writeCap(list);
+    var q = CAP.pending; CAP.pending = null;
+    for (var j = 0; j < q.length; j++) q[j](list);
+  };
+  Promise.all(CANDIDATES.map(probeServer)).then(done, function () { done([]); });
+}
+/* 已验证可用的音源；没探测成功就退回当前音源，绝不空手而归 */
+function goodServers() {
+  var l = (CAP.list && CAP.list.length) ? CAP.list : readCap();
+  return (l && l.length) ? l : [S.server || "netease"];
+}
 var MAX_SAME = 2;        // 同一音源最多额外重试次数
 var NEXT_GAP = 1200;     // 重试 / 换源前的等待（毫秒）
 var LOAD_WATCH = 8000;   // 多久还没真正开始播放，就判定为加载失败
@@ -773,6 +882,39 @@ function setBusy(on) {
   var b = $("coverBtn");
   b.classList.toggle("live", !on);
   b.classList.toggle("busy", !!on);
+}
+/* ---------- 播放状态弹窗 ---------- */
+var SM_ICON = {
+  ok: '<svg viewBox="0 0 52 52"><circle class="c" cx="26" cy="26" r="24"/><path class="m" d="M14.1 27.2l7.1 7.2 16.7-16.8"/></svg>',
+  fail: '<svg viewBox="0 0 52 52"><circle class="c" cx="26" cy="26" r="24"/><path class="m" d="M16.5 16.5 35.5 35.5M35.5 16.5 16.5 35.5"/></svg>',
+  tip: '<svg viewBox="0 0 52 52"><circle class="c" cx="26" cy="26" r="24"/><path class="m" d="M26 14.5v16.5"/><path class="m" d="M26 38.4v.3"/></svg>',
+  load: '<svg viewBox="0 0 52 52"><circle class="c" cx="26" cy="26" r="24"/><circle class="m spin" cx="26" cy="26" r="24"/></svg>'
+};
+var smKey = "";
+/* state: load / ok / fail / tip。hold 为自动消失毫秒数 */
+function statusModal(state, title, sub, hold) {
+  var m = $("statusModal");
+  if (!m) return;
+  var key = state + "|" + (title || "") + "|" + (sub || "");
+  if (key === smKey && m.classList.contains("show")) return;
+  smKey = key;
+  clearT("smT");
+  m.className = state;
+  $("smIcon").innerHTML = SM_ICON[state] || SM_ICON.load;
+  $("smTitle").textContent = title || "";
+  var sb = $("smSub");
+  sb.textContent = sub || "";
+  sb.style.display = sub ? "" : "none";
+  $("smBar").style.display = (state === "load") ? "" : "none";
+  void m.offsetWidth;   /* 强制重排，让描边/入场动画重新播放 */
+  m.classList.add("show");
+  S.smT = setTimeout(function () { S.smT = 0; hideStatus(); }, hold || (state === "fail" ? 3400 : 1900));
+}
+function hideStatus() {
+  var m = $("statusModal");
+  if (!m) return;
+  m.classList.remove("show");
+  smKey = "";
 }
 function stopAudio() {
   clearT("watchT");
@@ -813,6 +955,7 @@ function playItem(i) {
   setNow(it.author);
   applyCover();
   highlightLists();
+  statusModal("load", "正在加载", (it.title || "") + (it.author ? " · " + it.author : ""));
   doLoad(S.cands[0], 0);
   loadLrc(it.id, S.cands[0].s);
 }
@@ -843,7 +986,7 @@ function doLoad(c, delay) {
   try { audio.load(); } catch (e) {}
   var p = audio.play();
   if (p && typeof p.catch === "function") {
-    p.then(function () { if (isLive(t)) setPlaying(true); })
+    p.then(function () { if (isLive(t)) { setPlaying(true); statusModal("ok", "开始播放", srcName(c.s)); } })
      .catch(function (err) { if (isLive(t)) onPlayFail(err); });
   }
   S.watchT = setTimeout(function () {
@@ -859,6 +1002,7 @@ function onPlayFail(err) {
     setPlaying(false);
     setBusy(false);
     setNow("点击 ▶ 开始播放", true);
+    statusModal("tip", "等待你点一下播放", "浏览器拦截了自动播放");
     return;
   }
   if (err && err.name === "AbortError") return;
@@ -876,6 +1020,7 @@ function onPlayFail(err) {
     S.same++;
     c.r++;   /* 重试时改走 /stream 通道（带 Range，能解析 JSON 里的真实地址） */
     setNow("加载失败，重试 " + (S.same + 1) + "/" + (MAX_SAME + 1) + " · " + srcName(c.s), true);
+    statusModal("load", "加载失败，正在重试", srcName(c.s) + " · 第 " + (S.same + 1) + "/" + (MAX_SAME + 1) + " 次");
     doLoad(c, NEXT_GAP);
     return;
   }
@@ -885,12 +1030,21 @@ function onPlayFail(err) {
 function switchSource() {
   var c = curCand();
   if (c) S.tried[c.s] = 1;
+  /* 第一次换源：先探明哪些平台真的能用，免得对着必然 400 的平台空转 */
+  if (!(CAP.list && CAP.list.length) && !readCap()) {
+    var tk = S.tk;
+    statusModal("load", "正在检测可用音源", "");
+    ensureSources(function () { if (isLive(tk)) switchSource(); });
+    return;
+  }
+  var pool = goodServers();
   var next = "";
-  for (var i = 0; i < SERVERS.length; i++) if (!S.tried[SERVERS[i]]) { next = SERVERS[i]; break; }
+  for (var i = 0; i < pool.length; i++) if (!S.tried[pool[i]]) { next = pool[i]; break; }
   if (!next) { giveUp(); return; }
   S.same = 0;
   S.switching = true;
   setNow("正在更换音源（" + srcName(next) + "）…", true);
+  statusModal("load", "正在更换音源", srcName(next));
   S.retryT = setTimeout(function () {
     S.retryT = 0;
     var it = S.list[S.idx];
@@ -960,6 +1114,7 @@ function giveUp() {
   clearT("retryT");
   S.switching = false;
   setNow("无法播放：所有音源都试过了", true);
+  statusModal("fail", "无法播放", "已试过所有可用音源，换一首试试");
 }
 function highlightLists() {
   var lis = $("searchList").children;
@@ -1357,5 +1512,13 @@ parseLoginReturn();
 
 })();
 </script>
+<div id="statusModal" role="status" aria-live="polite">
+  <div class="sm-box">
+    <div class="sm-icon" id="smIcon"></div>
+    <div class="sm-title" id="smTitle">正在加载</div>
+    <div class="sm-sub" id="smSub"></div>
+    <div class="sm-bar" id="smBar"><i></i></div>
+  </div>
+</div>
 </body>
 </html>
