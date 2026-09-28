@@ -246,6 +246,15 @@ body.paused .songlist li.cur .eq i{animation-play-state:paused}
 .p-cov img{width:100%;height:100%;object-fit:cover}
 .p-cov .mask{position:absolute;inset:0;background:rgba(13,11,8,.5);display:none;align-items:center;justify-content:center;color:#fff}
 .p-cov.live .mask{display:flex}
+.p-cov.busy .mask{display:flex}
+.p-cov.busy .mask svg{display:none}
+.p-cov .mask::before{
+  content:"";display:none;width:20px;height:20px;border-radius:50%;
+  border:2.5px solid rgba(255,255,255,.28);border-top-color:#fff;
+  animation:maskSpin .7s linear infinite;
+}
+.p-cov.busy .mask::before{display:block}
+@keyframes maskSpin{to{transform:rotate(360deg)}}
 .p-cov.live{animation:coverGlow 2.2s ease-in-out infinite}
 @keyframes coverGlow{0%,100%{box-shadow:0 4px 16px rgba(0,0,0,.4),0 0 0 0 rgba(232,89,12,.55)}50%{box-shadow:0 4px 16px rgba(0,0,0,.4),0 0 0 7px rgba(232,89,12,0)}}
 .p-cov .mask svg{width:22px;height:22px}
@@ -253,6 +262,8 @@ body.paused .songlist li.cur .eq i{animation-play-state:paused}
 .p-now:hover{transform:translateX(3px)}
 .p-now .t{font-size:14.5px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.01em;min-height:20px}
 .p-now .s{font-family:var(--mono);font-size:10.5px;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;letter-spacing:.02em;min-height:14px}
+.p-now .s .hint{font-family:var(--sans);color:#ffb27d;animation:hintPulse 1.2s ease-in-out infinite}
+@keyframes hintPulse{0%,100%{opacity:.65}50%{opacity:1}}
 .p-ctrl{display:flex;align-items:center;gap:6px;flex:none}
 /* —— 渐变描边按钮基类（切歌/播放/播放方式/播放列表共用） —— */
 .gb{
@@ -596,7 +607,11 @@ body.paused .songlist li.cur .eq i{animation-play-state:paused}
 
 /* 次元星域音乐 —— 仅搜索 / 登录 / 歌词 / 播放 */
 
-var S = { server: "netease", list: [], idx: -1, lrc: [], lrcIdx: -1, mode: 0 };
+var S = {
+  server: "netease", list: [], idx: -1, lrc: [], lrcIdx: -1, mode: 0,
+  tk: 0, cands: null, ci: 0, same: 0, tried: null, switching: false,
+  retryT: 0, watchT: 0, watching: false, pausedByUser: false, failAt: 0
+};
 var MODE_ICONS = [
   '<path d="M2 17H4.5l-.18-1H2v-2h4v2.5L4.18 19H6v2H2v-2zm4-12H9.4L9 4H7V2h4v2.5L9.82 7H11v2H6V5zm4 4h12v2H10v-2zm0 5h12v2H10v-2z"/>',
   '<path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>',
@@ -607,16 +622,23 @@ var DEFAULT_ART = "https://t.alcy.cc/tx";
 
 var API_HOST = (location.hostname.indexOf("107211.xyz") >= 0) ? "" : "https://api.107211.xyz";
 
-function apiUrl(type, id) {
-  var p = "api?server=" + S.server + "&type=" + encodeURIComponent(type) + "&id=" + encodeURIComponent(id);
+function apiUrl(type, id, server) {
+  var p = "api?server=" + (server || S.server) + "&type=" + encodeURIComponent(type) + "&id=" + encodeURIComponent(id);
   return API_HOST ? (API_HOST + "/" + p) : ("/" + p);
 }
-function streamUrl(id) { return apiUrl("url", id); }
-function coverUrl(id) {
-  return API_HOST ? apiUrl("pic", id) : ("/cover?server=" + S.server + "&id=" + encodeURIComponent(id));
+/* r：自建部署下 0 走 /api 代理，1 走 /stream（带 Range、可解析 JSON 里的真实地址） */
+function streamUrl(id, server, r) {
+  if (API_HOST) return apiUrl("url", id, server);
+  if (r) return "/stream?server=" + (server || S.server) + "&id=" + encodeURIComponent(id);
+  return apiUrl("url", id, server);
 }
-function lrcUrl(id) {
-  return API_HOST ? apiUrl("lrc", id) : ("/lyric?server=" + S.server + "&id=" + encodeURIComponent(id));
+function coverUrl(id, server) {
+  if (API_HOST) return apiUrl("pic", id, server);
+  return "/cover?server=" + (server || S.server) + "&id=" + encodeURIComponent(id);
+}
+function lrcUrl(id, server) {
+  if (API_HOST) return apiUrl("lrc", id, server);
+  return "/lyric?server=" + (server || S.server) + "&id=" + encodeURIComponent(id);
 }
 
 function $(id) { return document.getElementById(id); }
@@ -636,22 +658,23 @@ function idFromUrl(u) {
   if (i < 0) return "";
   return s.slice(i + 3).replace(/[^0-9].*$/, "");
 }
-function mapItem(raw, i) {
+function mapItem(raw, i, server) {
   raw = raw || {};
   var id = raw.id ? String(raw.id) : "";
   if (!id) id = idFromUrl(raw.url || raw.lrc || raw.pic);
   if (!id) id = "t" + hash(String(raw.title || "") + "|" + String(raw.author || "") + "|" + i);
   return {
     id: id,
+    server: raw.server || server || S.server,
     title: String(raw.title || raw.name || raw.song || ""),
     author: String(raw.author || raw.artist || raw.singer || ""),
     pic: picToHttps(raw.pic || raw.cover || raw.picUrl || "")
   };
 }
-function toList(data) {
+function toList(data, server) {
   var arr = Array.isArray(data) ? data : ((data && data.data) || []);
   var out = [];
-  for (var i = 0; i < arr.length; i++) out.push(mapItem(arr[i], i));
+  for (var i = 0; i < arr.length; i++) out.push(mapItem(arr[i], i, server));
   return out;
 }
 function getJSON(url, tries) {
@@ -697,7 +720,7 @@ function runSearch() {
     ul.innerHTML = '<li class="empty">搜索中…</li>';
     $("resCount").textContent = "";
   }
-  getJSON(apiUrl("search", q), 2).then(function (data) {
+  getJSON(apiUrl("search", q, S.server), 2).then(function (data) {
     var list = toList(data);
     var keys = Object.keys(SEARCH_CACHE);
     if (keys.length >= 20) delete SEARCH_CACHE[keys[0]];
@@ -736,7 +759,36 @@ function renderSonglist(ul, list) {
   }
 }
 
-/* ---------- 播放 ---------- */
+/* ---------- 播放（加载失败 → 重试 → 换源，不再直接跳下一首） ---------- */
+var SERVERS = ["netease", "tencent", "kugou", "baidu", "kuwo"];
+var SRC_NAMES = { netease: "网易云", tencent: "QQ音乐", kugou: "酷狗", baidu: "百度", kuwo: "酷我" };
+var MAX_SAME = 2;        // 同一音源最多额外重试次数
+var NEXT_GAP = 1200;     // 重试 / 换源前的等待（毫秒）
+var LOAD_WATCH = 8000;   // 多久还没真正开始播放，就判定为加载失败
+var FAIL_GAP = 1200;     // 同一轮失败的重复通知去重窗口
+
+function srcName(s) { return SRC_NAMES[s] || s; }
+function bumpTk() { S.tk = (S.tk || 0) + 1; return S.tk; }
+function isLive(t) { return S.tk === t; }
+function clearT(k) { if (S[k]) { clearTimeout(S[k]); S[k] = 0; } }
+function curCand() { return (S.cands && S.cands.length) ? S.cands[S.ci] : null; }
+function setNow(text, hint) {
+  var el = $("nowAuthor");
+  el.textContent = text || "";
+  el.classList.toggle("hint", !!hint);
+}
+function setBusy(on) {
+  var b = $("coverBtn");
+  b.classList.toggle("live", !on);
+  b.classList.toggle("busy", !!on);
+}
+function stopAudio() {
+  clearT("watchT");
+  S.watching = false;
+  try { audio.pause(); } catch (e) {}
+  audio.removeAttribute("src");
+  try { audio.load(); } catch (e) {}
+}
 function setQueue(list, idx) {
   S.list = list.slice();
   S.idx = -1;
@@ -749,45 +801,173 @@ function playFromList(list, idx) {
   playItem(idx);
   highlightLists();
 }
-function onPlayFail(err) {
-  var now = Date.now();
-  if (S.failAt && now - S.failAt < 1500) return;
-  S.failAt = now;
-  if (err && err.name === "NotAllowedError") { setPlaying(false); return; }
-  setPlaying(false);
-  var hadSrc = !!audio.src;
-  audio.removeAttribute("src");
-  try { audio.load(); } catch (e) {}
-  if (hadSrc && S.list.length > 1) {
-    S.failGuard = (S.failGuard || 0) + 1;
-    if (S.failGuard <= 2) {
-      var next = S.idx + 1;
-      if (next >= S.list.length) next = 0;
-      setTimeout(function () { playItem(next); }, 1200);
-      return;
-    }
-  }
-  S.failGuard = 0;
-}
 function playItem(i) {
   var it = S.list[i];
   if (!it) return;
+  clearT("retryT");
+  clearT("watchT");
+  bumpTk();
   S.idx = i;
   S.lrc = [];
   S.lrcIdx = -1;
+  S.same = 0;
+  S.failAt = 0;
+  S.tried = {};
+  S.switching = false;
+  S.pausedByUser = false;
+  S.cands = [{ s: it.server || S.server, id: it.id, r: 0 }];
+  S.ci = 0;
   $("nowTitle").textContent = it.title;
-  $("nowAuthor").textContent = it.author;
-  var cov = it.pic ? coverUrl(it.id) : DEFAULT_ART;
+  setNow(it.author);
+  applyCover();
+  highlightLists();
+  doLoad(S.cands[0], 0);
+  loadLrc(it.id, S.cands[0].s);
+}
+function applyCover() {
+  var it = S.list[S.idx];
+  if (!it) return;
+  var c = curCand();
+  var cov = (it.pic && c) ? coverUrl(c.id, c.s) : DEFAULT_ART;
   $("coverImg").src = cov;
   $("lyrImg").src = cov;
   $("lyrBg").style.backgroundImage = "url('" + cov + "')";
   imgFallback($("coverImg"));
   imgFallback($("lyrImg"));
-  audio.src = streamUrl(it.id);
-  audio.play().then(function () { setPlaying(true); }).catch(function (err) { onPlayFail(err); });
-  loadLrc(it.id);
-  highlightLists();
-  $("coverBtn").classList.add("live");
+}
+/* 载入当前候选音源；delay > 0 时先等待，避免过于密集的重试 */
+function doLoad(c, delay) {
+  if (!c) return;
+  if (delay) {
+    S.retryT = setTimeout(function () { S.retryT = 0; doLoad(c, 0); }, delay);
+    return;
+  }
+  var t = S.tk;
+  stopAudio();
+  setBusy(true);
+  S.failAt = 0;
+  S.watching = true;
+  audio.src = streamUrl(c.id, c.s, c.r);
+  try { audio.load(); } catch (e) {}
+  var p = audio.play();
+  if (p && typeof p.catch === "function") {
+    p.then(function () { if (isLive(t)) setPlaying(true); })
+     .catch(function (err) { if (isLive(t)) onPlayFail(err); });
+  }
+  S.watchT = setTimeout(function () {
+    S.watchT = 0;
+    if (!isLive(t) || !S.watching) return;
+    if (S.pausedByUser) return;
+    if (audio.paused || audio.readyState < 3) onPlayFail({ name: "LoadStall" });
+  }, LOAD_WATCH);
+}
+/* 加载失败：先同源重试若干次，仍失败则换下一个音源重新匹配同一首歌 */
+function onPlayFail(err) {
+  if (err && err.name === "NotAllowedError") {
+    setPlaying(false);
+    setBusy(false);
+    setNow("点击 ▶ 开始播放", true);
+    return;
+  }
+  if (err && err.name === "AbortError") return;
+  var now = Date.now();
+  if (S.failAt && now - S.failAt < FAIL_GAP) return;
+  S.failAt = now;
+  if (S.switching) return;   /* 正在换源，忽略上一次加载的迟到通知 */
+  var c = curCand();
+  if (S.idx < 0 || !c) { setPlaying(false); return; }
+  clearT("watchT");
+  S.watching = false;
+  setPlaying(false);
+  setBusy(true);
+  if (S.same < MAX_SAME) {
+    S.same++;
+    c.r++;   /* 重试时改走 /stream 通道（带 Range，能解析 JSON 里的真实地址） */
+    setNow("加载失败，重试 " + (S.same + 1) + "/" + (MAX_SAME + 1) + " · " + srcName(c.s), true);
+    doLoad(c, NEXT_GAP);
+    return;
+  }
+  switchSource();
+}
+/* 换源：在别的平台按歌名重新搜到同一首，再作为新候选载入 */
+function switchSource() {
+  var c = curCand();
+  if (c) S.tried[c.s] = 1;
+  var next = "";
+  for (var i = 0; i < SERVERS.length; i++) if (!S.tried[SERVERS[i]]) { next = SERVERS[i]; break; }
+  if (!next) { giveUp(); return; }
+  S.same = 0;
+  S.switching = true;
+  setNow("正在更换音源（" + srcName(next) + "）…", true);
+  S.retryT = setTimeout(function () {
+    S.retryT = 0;
+    var it = S.list[S.idx];
+    if (!it) return;
+    findOnServer(it, next, function (hit) {
+      S.switching = false;
+      if (!hit) { S.tried[next] = 1; switchSource(); return; }
+      S.cands.push({ s: hit.server, id: hit.id, r: 0 });
+      S.ci = S.cands.length - 1;
+      it.server = hit.server;
+      it.id = hit.id;
+      it.pic = hit.pic || it.pic;
+      setNow(it.author);
+      applyCover();
+      doLoad(S.cands[S.ci], 0);
+      loadLrc(hit.id, hit.server);
+    });
+  }, NEXT_GAP);
+}
+/* 在指定音源里按「歌名 + 歌手」重新匹配同一首歌 */
+function findOnServer(it, srv, cb) {
+  var t = S.tk;
+  if (!it || !it.title) return;
+  function done(hit) { if (isLive(t)) cb(hit); }
+  function go(q, again) {
+    getJSON(apiUrl("search", q, srv), 1).then(function (data) {
+      if (!isLive(t)) return;
+      var hit = pickMatch(toList(data, srv), it);
+      if (!hit && again) { go(it.title + " " + it.author, false); return; }
+      done(hit);
+    }).catch(function () {
+      if (!isLive(t)) return;
+      if (again) { go(it.title + " " + it.author, false); return; }
+      done(null);
+    });
+  }
+  go(it.title, true);
+}
+function normText(s) {
+  return String(s == null ? "" : s).toLowerCase()
+    .replace(/[\\(\\[（【].*?[\\]）)】]/g, "")
+    .replace(/[\\s\\.,\\-_·、!！?？:：;；'""|/\\\\~～*#]/g, "");
+}
+var ALT_RE = /(live|伴奏|remix|cover|dj|翻唱|钢琴|version|\\bver\\b)/i;
+function pickMatch(list, it) {
+  if (!list || !list.length) return null;
+  var t = normText(it.title), a = normText(it.author), wantAlt = ALT_RE.test(it.title || "");
+  var best = null, bs = -1;
+  for (var i = 0; i < list.length; i++) {
+    var c = list[i], ct = normText(c.title), ca = normText(c.author), s = 0;
+    if (ct && t) {
+      if (ct === t) s += 100;
+      else if (ct.indexOf(t) >= 0 || t.indexOf(ct) >= 0) s += 60;
+      else s += 15;
+    }
+    if (ca && a && (ca === a || ca.indexOf(a) >= 0 || a.indexOf(ca) >= 0)) s += 35;
+    /* 原曲不是改编版时，优先选非 Live / 非伴奏 */
+    if (!wantAlt && ALT_RE.test(c.title || "")) s -= 45;
+    if (s > bs) { bs = s; best = c; }
+  }
+  return bs >= 50 ? best : null;
+}
+function giveUp() {
+  stopAudio();
+  setPlaying(false);
+  setBusy(false);
+  clearT("retryT");
+  S.switching = false;
+  setNow("无法播放：所有音源都试过了", true);
 }
 function highlightLists() {
   var lis = $("searchList").children;
@@ -804,6 +984,7 @@ function setPlaying(on) {
   $("btnLyrPlay").classList.toggle("on", on);
   $("lyrArt").classList.toggle("playing", on);
   document.body.classList.toggle("paused", !on);
+  if (on) setBusy(false);
 }
 
 /* ---------- 播放列表 / 播放方式 ---------- */
@@ -823,12 +1004,15 @@ function renderQueue() {
   }
 }
 /* ---------- 歌词 ---------- */
-function loadLrc(id) {
+function loadLrc(id, server) {
+  var t = S.tk;
   $("lyrTr").innerHTML = "";
-  fetch(lrcUrl(id)).then(function (r) { return r.text(); }).then(function (txt) {
+  fetch(lrcUrl(id, server)).then(function (r) { return r.text(); }).then(function (txt) {
+    if (!isLive(t)) return;
     S.lrc = parseLrc(txt);
     renderLrc();
   }).catch(function () {
+    if (!isLive(t)) return;
     S.lrc = [];
     $("lyrTr").innerHTML = "";
   });
@@ -964,6 +1148,7 @@ function bindSeek(bar, fillId, knobSel) {
   bar.addEventListener("pointercancel", function () { dragging = false; bar.classList.remove("drag"); });
 }
 function onEnded() {
+  clearT("watchT");
   if (S.mode === 2) { audio.currentTime = 0; audio.play(); return; }
   if (S.idx < S.list.length - 1) { playItem(S.idx + 1); return; }
   if (S.mode === 1) { playItem(0); return; }
@@ -1108,8 +1293,22 @@ $("btnDoSearch").onclick = function () { clearTimeout(searchTimer); runSearch();
 $("playAll").onclick = function () { if (S.list.length) setQueue(S.list, 0); };
 
 function clickPlay() {
-  if (!audio.src) { if (S.list.length) playItem(0); return; }
-  if (audio.paused) audio.play(); else audio.pause();
+  if (!audio.src) {
+    /* 无音源（上一轮全部失败）→ 重新从头加载当前这首 */
+    if (S.list.length) playItem(S.idx >= 0 ? S.idx : 0);
+    return;
+  }
+  if (audio.paused) {
+    S.pausedByUser = false;
+    setBusy(true);
+    audio.play().catch(function (err) { onPlayFail(err); });
+  } else {
+    S.pausedByUser = true;
+    clearT("watchT");
+    S.watching = false;
+    setBusy(false);
+    audio.pause();
+  }
 }
 function stepPrev() { if (S.list.length) playItem(S.idx > 0 ? S.idx - 1 : S.list.length - 1); }
 function stepNext() { if (S.list.length) playItem(S.idx < S.list.length - 1 ? S.idx + 1 : 0); }
@@ -1130,10 +1329,23 @@ $("btnCloseLogin").onclick = closeLogin;
 $("loginLayer").addEventListener("click", function (e) { if (e.target === this) closeLogin(); });
 
 audio.addEventListener("timeupdate", onTime);
-audio.addEventListener("play", function () { S.failGuard = 0; setPlaying(true); });
+audio.addEventListener("playing", function () {
+  /* 真正开始出声：清掉加载看门狗，重置同源重试计数 */
+  clearT("watchT");
+  S.watching = false;
+  S.same = 0;
+  S.failAt = 0;
+  setPlaying(true);
+  var it = S.list[S.idx];
+  if (it) setNow(it.author);
+});
 audio.addEventListener("pause", function () { setPlaying(false); });
 audio.addEventListener("ended", onEnded);
-audio.addEventListener("error", function () { onPlayFail(); });
+audio.addEventListener("error", function (e) {
+  var me = e.target.error;
+  if (me && me.code === 1) return;   /* ABORTED：被主动打断，不算失败 */
+  onPlayFail(me);
+});
 window.addEventListener("resize", function () { scrollLrc(); });
 document.addEventListener("keydown", function (e) {
   if (e.key === "Escape") {
