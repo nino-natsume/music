@@ -731,23 +731,21 @@ function fmt(sec) {
   sec = Math.max(0, Math.floor(sec || 0));
   return ("0" + Math.floor(sec / 60)).slice(-2) + ":" + ("0" + (sec % 60)).slice(-2);
 }
-function hash(s) {
-  var h = 0, i, c;
-  for (i = 0; i < s.length; i++) { c = s.charCodeAt(i); h = ((h << 5) - h + c) | 0; }
-  return Math.abs(h).toString(36);
-}
 function picToHttps(p) { return String(p || "").replace(/^http:/, "https:"); }
 function idFromUrl(u) {
   var s = String(u || "");
-  var i = s.indexOf("id=");
-  if (i < 0) return "";
-  try { return decodeURIComponent(s.slice(i + 3).split("&")[0] || ""); } catch (e) { return s.slice(i + 3).split("&")[0] || ""; }
+  /* 必须卡住 ?id= / &id= 边界：albumid=99、picid=... 里面也含 "id="，
+     用 indexOf 会把 albumid 的值当歌曲 id 取出来，换源后就会播成别的歌 */
+  var m = s.match(/[?&]id=([^&#]*)/);
+  if (!m) return "";
+  try { return decodeURIComponent(m[1] || ""); } catch (e) { return m[1] || ""; }
 }
 function mapItem(raw, i, server) {
   raw = raw || {};
   var id = raw.id ? String(raw.id) : "";
   if (!id) id = idFromUrl(raw.url || raw.lrc || raw.pic);
-  if (!id) id = "t" + hash(String(raw.title || "") + "|" + String(raw.author || "") + "|" + i);
+  /* 取不到真实 id 就不再伪造 "t"+hash：伪 id 请求 /api、/lyric、/cover 必然失败，
+     界面上却显示成一条能播、点了没反应的歌。宁可在结果里滤掉。 */
   return {
     id: id,
     server: raw.server || server || S.server,
@@ -757,10 +755,15 @@ function mapItem(raw, i, server) {
     au: String(raw.url || raw.auc || raw.audio || "")
   };
 }
+/* 至少要有真实 id 或直链音频才 playable */
+function usable(it) { return !!(it.id || it.au); }
 function toList(data, server) {
   var arr = Array.isArray(data) ? data : ((data && data.data) || []);
   var out = [];
-  for (var i = 0; i < arr.length; i++) out.push(mapItem(arr[i], i, server));
+  for (var i = 0; i < arr.length; i++) {
+    var it = mapItem(arr[i], i, server);
+    if (usable(it)) out.push(it);
+  }
   return out;
 }
 function getJSON(url, tries) {
@@ -990,7 +993,7 @@ function playItem(i) {
   S.tried = {};
   S.switching = false;
   S.pausedByUser = false;
-  S.cands = [{ s: it.server || S.server, id: it.id, r: 0 }];
+  S.cands = [{ s: it.server || S.server, id: it.id, r: 0, au: it.au || "" }];
   S.ci = 0;
   $("nowTitle").textContent = it.title;
   setNow(it.author);
@@ -1033,8 +1036,9 @@ function doLoad(c, delay) {
   setBusy(true);
   S.failAt = 0;
   S.watching = true;
-  var it = S.list[S.idx];
-  audio.src = streamUrl(c.id, c.s, c.r, it ? it.au : "");
+  /* 音频地址取自候选自身（c.au），不能回头读 S.list[S.idx].au——
+     换源后列表项会被改写，回读会拿到上一个平台的地址，播成别的歌 */
+  audio.src = streamUrl(c.id, c.s, c.r, c.au);
   try { audio.load(); } catch (e) {}
   var p = audio.play();
   if (p && typeof p.catch === "function") {
@@ -1104,10 +1108,11 @@ function switchSource() {
     findOnServer(it, next, function (hit) {
       S.switching = false;
       if (!hit) { S.tried[next] = 1; switchSource(); return; }
-      S.cands.push({ s: hit.server, id: hit.id, r: 0 });
+      S.cands.push({ s: hit.server, id: hit.id, r: 0, au: hit.au || "" });
       S.ci = S.cands.length - 1;
       it.server = hit.server;
       it.id = hit.id;
+      it.au = hit.au || "";
       it.pic = hit.pic || it.pic;
       setNow(it.author);
       applyCover();
