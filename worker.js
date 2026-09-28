@@ -679,9 +679,41 @@ function apiUrl(type, id, server, r) {
 }
 /* r：自建部署下 0 走 /api 代理，1 走 /stream（带 Range、可解析 JSON 里的真实地址）
    重试时附加 r 随机值，避免反复命中同一个已失效的缓存地址 */
-function streamUrl(id, server, r) {
+/* 媒体通道：走 Worker 代理（/stream，带 Range 可拖进度条）还是让浏览器直连上游。
+   网易云 CDN 屏蔽 Cloudflare 出口 IP，Worker 回源媒体必然 525，而纯 JSON/文本端点照常
+   正常——于是就出现「搜得到歌、点播放却全挂、封面全空」这种诡异故障（2026-09 线上实例）。
+   /health 会告诉我们哪条通道是通的。直连的代价：上游 type=url 整首返回、不支持 Range，
+   拖动进度条会退化，但至少能播。 */
+var MEDIA = { mode: "proxy", ready: false, audio: true, cover: true };
+var HEALTH = { state: "", t: 0 };
+function bootMedia(cb) {
+  if (MEDIA.ready) { cb(); return; }
+  if (API_HOST) { MEDIA.ready = true; cb(); return; }   /* 自建部署本来就直连上游 */
+  var ctl = null, timer = 0;
+  try { ctl = new AbortController(); timer = setTimeout(function () { ctl.abort(); }, 4000); } catch (e) { ctl = null; }
+  fetch("/health", ctl ? { signal: ctl.signal } : {})
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (j) {
+      if (j) {
+        MEDIA.audio = j.audio !== false;
+        MEDIA.cover = j.cover !== false;
+        MEDIA.mode = (j.state === "down" || (!MEDIA.audio && !MEDIA.cover)) ? "direct" : "proxy";
+        if (j.state) { HEALTH.state = String(j.state); HEALTH.t = Date.now(); }
+      }
+    })
+    .catch(function () {})
+    .then(function () {
+      if (timer) clearTimeout(timer);
+      MEDIA.ready = true;
+      cb();
+    });
+}
+function streamUrl(id, server, r, direct) {
   var bust = r ? String(Date.now() % 1000000) : "";
   if (API_HOST) return apiUrl("url", id, server, bust);
+  if (MEDIA.mode === "direct" && direct) {
+    return direct + (direct.indexOf("?") >= 0 ? "&" : "?") + "r=" + (bust || String(Date.now() % 1000000));
+  }
   if (r) return "/stream?server=" + (server || S.server) + "&id=" + encodeURIComponent(id) + (bust ? "&r=" + bust : "");
   return apiUrl("url", id, server);
 }
@@ -721,7 +753,8 @@ function mapItem(raw, i, server) {
     server: raw.server || server || S.server,
     title: String(raw.title || raw.name || raw.song || ""),
     author: String(raw.author || raw.artist || raw.singer || ""),
-    pic: picToHttps(raw.pic || raw.cover || raw.picUrl || "")
+    pic: picToHttps(raw.pic || raw.cover || raw.picUrl || ""),
+    au: String(raw.url || raw.auc || raw.audio || "")
   };
 }
 function toList(data, server) {
@@ -964,14 +997,24 @@ function playItem(i) {
   applyCover();
   highlightLists();
   statusModal("load", "正在加载", (it.title || "") + (it.author ? " · " + it.author : ""));
-  doLoad(S.cands[0], 0);
+  /* 先探明媒体通道再播：Worker 代理挂掉时直接走浏览器直连，
+     省掉每首歌先失败三轮「加载失败，正在重试」的时间浪费 */
+  var tk0 = S.tk;
+  bootMedia(function () {
+    if (!isLive(tk0)) return;
+    doLoad(S.cands[0], 0);
+  });
   loadLrc(it.id, S.cands[0].s);
 }
 function applyCover() {
   var it = S.list[S.idx];
   if (!it) return;
   var c = curCand();
-  var cov = (it.pic && c) ? coverUrl(c.id, c.s) : DEFAULT_ART;
+  /* 优先用搜索结果里自带的封面直链：网易云 CDN 会屏蔽 Cloudflare 出口 IP，
+     走 /cover 代理时必然 525，表现为大封面全空（搜索列表反而是好的，因为它直连）。
+     只有拿不到直链时才退回 /cover。 */
+  var cov = it.pic || (c ? coverUrl(c.id, c.s) : DEFAULT_ART);
+  if (!cov) cov = DEFAULT_ART;
   $("coverImg").src = cov;
   $("lyrImg").src = cov;
   $("lyrBg").style.backgroundImage = "url('" + cov + "')";
@@ -990,7 +1033,8 @@ function doLoad(c, delay) {
   setBusy(true);
   S.failAt = 0;
   S.watching = true;
-  audio.src = streamUrl(c.id, c.s, c.r);
+  var it = S.list[S.idx];
+  audio.src = streamUrl(c.id, c.s, c.r, it ? it.au : "");
   try { audio.load(); } catch (e) {}
   var p = audio.play();
   if (p && typeof p.catch === "function") {
@@ -1126,26 +1170,11 @@ function giveUp() {
   probeHealth();
 }
 /* 区分「这首歌听不了」和「上游音源整体挂了」。
-   Worker /health 会依次探测媒体兜底链，只发小体积请求，5 秒超时就放弃。
+   bootMedia 已经把 /health 的结论存进 HEALTH，这里直接复用，不重复探测。
    判为 down 时才提示服务故障，避免把个别付费/下架曲目误报成服务挂了。 */
-var HEALTH = { state: "", t: 0 };
 function probeHealth() {
-  var now = Date.now();
-  if (HEALTH.state && now - HEALTH.t < 60000) { applyHealth(HEALTH.state); return; }
-  var ctl = null, timer = 0;
-  try { ctl = new AbortController(); timer = setTimeout(function () { ctl.abort(); }, 5000); } catch (e) { ctl = null; }
-  var opt = ctl ? { signal: ctl.signal } : {};
-  fetch(API_HOST ? (API_HOST + "/health") : "/health", opt)
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (j) {
-      if (timer) clearTimeout(timer);
-      var st = j && j.state ? String(j.state) : "";
-      if (!st) return;
-      HEALTH.state = st;
-      HEALTH.t = Date.now();
-      applyHealth(st);
-    })
-    .catch(function () { if (timer) clearTimeout(timer); });
+  if (HEALTH.state) { applyHealth(HEALTH.state); return; }
+  bootMedia(function () { if (HEALTH.state) applyHealth(HEALTH.state); });
 }
 function applyHealth(st) {
   if (S.playing || S.busy) return;
@@ -1881,38 +1910,45 @@ async function handleLyric(url, env) {
 __name(handleLyric, "handleLyric");
 
 /* 诊断端点 /health：判定媒体链路是「主源健康 / 已自动降级 / 全挂」。
-   只探测封面这种小体积请求，不下载音频，所以很便宜。
-   前端在多次换源后仍然失败时会调它，用来区分「这首歌听不了」和「上游音源挂了」。 */
+   音频用 Range: bytes=0-0 探测——只要第一个字节，成功时也不会整首下载；
+   失败时（本例的 525）会立刻返回，所以正反两种情况都很便宜。
+   前端据此决定媒体走 Worker 代理还是让浏览器直连上游：
+   网易云 CDN 会屏蔽 Cloudflare 出口 IP，Worker 回源必然 525，
+   而浏览器不在 Cloudflare 网络里，直连是通的。 */
 var PROBE_ID = "210049";
+async function probeMediaOne(base, type, id, auth, isAudio) {
+  try {
+    const h = { "User-Agent": UA };
+    if (isAudio) h["Range"] = "bytes=0-0";
+    const r = await fetch(mediaReq(base, "netease", type, id, auth), { headers: h });
+    const ct = (r.headers.get("content-type") || "").toLowerCase();
+    const good = r.ok && (ct.indexOf("audio/") === 0 || ct.indexOf("image/") === 0 || ct.indexOf("video/") === 0 || ct.indexOf("octet-stream") >= 0);
+    return { good: good, note: good ? "ok" : "http " + r.status + " (" + (ct || "no content-type") + ")" };
+  } catch (e) {
+    return { good: false, note: "unreachable" };
+  }
+}
 async function handleHealth(env) {
-  const auth = await makeAuth(env, "netease", "pic", PROBE_ID);
+  const authU = await makeAuth(env, "netease", "url", PROBE_ID);
+  const authP = await makeAuth(env, "netease", "pic", PROBE_ID);
   const detail = [];
-  let primaryOk = false, fallbackOk = false;
+  let audioOk = false, coverOk = false;
   for (let i = 0; i < MEDIA_BASES.length; i++) {
-    let note = "unreachable";
-    try {
-      const r = await fetch(mediaReq(MEDIA_BASES[i], "netease", "pic", PROBE_ID, auth), { headers: { "User-Agent": UA } });
-      const ct = (r.headers.get("content-type") || "").toLowerCase();
-      const good = r.ok && (ct.startsWith("image/") || ct.includes("octet-stream"));
-      note = good ? "ok" : "http " + r.status + " (" + (ct || "no content-type") + ")";
-      if (good && i === 0) primaryOk = true;
-      if (good && i > 0) fallbackOk = true;
-    } catch (e) {
-    }
-    detail.push(MEDIA_BASES[i].replace("https://", "").replace("http://", "") + ": " + note);
+    const host = MEDIA_BASES[i].replace("https://", "").replace("http://", "");
+    const a = await probeMediaOne(MEDIA_BASES[i], "url", PROBE_ID, authU, true);
+    const p = await probeMediaOne(MEDIA_BASES[i], "pic", PROBE_ID, authP, false);
+    if (a.good) audioOk = true;
+    if (p.good) coverOk = true;
+    detail.push(host + ": audio " + a.note + " / cover " + p.note);
   }
-  if (!primaryOk && !fallbackOk) {
+  if (!coverOk) {
     const pic = await neteaseCover(PROBE_ID);
-    if (pic) {
-      fallbackOk = true;
-      detail.push("music.163.com/api/song/detail: ok");
-    } else {
-      detail.push("music.163.com/api/song/detail: unavailable");
-    }
+    if (pic) { coverOk = true; detail.push("music.163.com/api/song/detail: cover ok"); }
+    else detail.push("music.163.com/api/song/detail: cover unavailable");
   }
-  const state = primaryOk ? "ok" : fallbackOk ? "degraded" : "down";
-  const reason = state === "down" ? "upstream media unavailable" : state === "degraded" ? "primary source down, using fallback" : "ok";
-  return json({ state: state, media: reason, detail: detail });
+  const state = audioOk && coverOk ? "ok" : !audioOk && !coverOk ? "down" : "degraded";
+  const reason = state === "down" ? "upstream media unavailable from Cloudflare; use direct media" : state === "degraded" ? "partial media path available" : "ok";
+  return json({ state: state, audio: audioOk, cover: coverOk, media: reason, detail: detail });
 }
 
 var worker_default = {

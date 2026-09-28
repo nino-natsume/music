@@ -343,38 +343,45 @@ async function handleLyric(url, env) {
 __name(handleLyric, "handleLyric");
 
 /* 诊断端点 /health：判定媒体链路是「主源健康 / 已自动降级 / 全挂」。
-   只探测封面这种小体积请求，不下载音频，所以很便宜。
-   前端在多次换源后仍然失败时会调它，用来区分「这首歌听不了」和「上游音源挂了」。 */
+   音频用 Range: bytes=0-0 探测——只要第一个字节，成功时也不会整首下载；
+   失败时（本例的 525）会立刻返回，所以正反两种情况都很便宜。
+   前端据此决定媒体走 Worker 代理还是让浏览器直连上游：
+   网易云 CDN 会屏蔽 Cloudflare 出口 IP，Worker 回源必然 525，
+   而浏览器不在 Cloudflare 网络里，直连是通的。 */
 var PROBE_ID = "210049";
+async function probeMediaOne(base, type, id, auth, isAudio) {
+  try {
+    const h = { "User-Agent": UA };
+    if (isAudio) h["Range"] = "bytes=0-0";
+    const r = await fetch(mediaReq(base, "netease", type, id, auth), { headers: h });
+    const ct = (r.headers.get("content-type") || "").toLowerCase();
+    const good = r.ok && (ct.indexOf("audio/") === 0 || ct.indexOf("image/") === 0 || ct.indexOf("video/") === 0 || ct.indexOf("octet-stream") >= 0);
+    return { good: good, note: good ? "ok" : "http " + r.status + " (" + (ct || "no content-type") + ")" };
+  } catch (e) {
+    return { good: false, note: "unreachable" };
+  }
+}
 async function handleHealth(env) {
-  const auth = await makeAuth(env, "netease", "pic", PROBE_ID);
+  const authU = await makeAuth(env, "netease", "url", PROBE_ID);
+  const authP = await makeAuth(env, "netease", "pic", PROBE_ID);
   const detail = [];
-  let primaryOk = false, fallbackOk = false;
+  let audioOk = false, coverOk = false;
   for (let i = 0; i < MEDIA_BASES.length; i++) {
-    let note = "unreachable";
-    try {
-      const r = await fetch(mediaReq(MEDIA_BASES[i], "netease", "pic", PROBE_ID, auth), { headers: { "User-Agent": UA } });
-      const ct = (r.headers.get("content-type") || "").toLowerCase();
-      const good = r.ok && (ct.startsWith("image/") || ct.includes("octet-stream"));
-      note = good ? "ok" : "http " + r.status + " (" + (ct || "no content-type") + ")";
-      if (good && i === 0) primaryOk = true;
-      if (good && i > 0) fallbackOk = true;
-    } catch (e) {
-    }
-    detail.push(MEDIA_BASES[i].replace("https://", "").replace("http://", "") + ": " + note);
+    const host = MEDIA_BASES[i].replace("https://", "").replace("http://", "");
+    const a = await probeMediaOne(MEDIA_BASES[i], "url", PROBE_ID, authU, true);
+    const p = await probeMediaOne(MEDIA_BASES[i], "pic", PROBE_ID, authP, false);
+    if (a.good) audioOk = true;
+    if (p.good) coverOk = true;
+    detail.push(host + ": audio " + a.note + " / cover " + p.note);
   }
-  if (!primaryOk && !fallbackOk) {
+  if (!coverOk) {
     const pic = await neteaseCover(PROBE_ID);
-    if (pic) {
-      fallbackOk = true;
-      detail.push("music.163.com/api/song/detail: ok");
-    } else {
-      detail.push("music.163.com/api/song/detail: unavailable");
-    }
+    if (pic) { coverOk = true; detail.push("music.163.com/api/song/detail: cover ok"); }
+    else detail.push("music.163.com/api/song/detail: cover unavailable");
   }
-  const state = primaryOk ? "ok" : fallbackOk ? "degraded" : "down";
-  const reason = state === "down" ? "upstream media unavailable" : state === "degraded" ? "primary source down, using fallback" : "ok";
-  return json({ state: state, media: reason, detail: detail });
+  const state = audioOk && coverOk ? "ok" : !audioOk && !coverOk ? "down" : "degraded";
+  const reason = state === "down" ? "upstream media unavailable from Cloudflare; use direct media" : state === "degraded" ? "partial media path available" : "ok";
+  return json({ state: state, audio: audioOk, cover: coverOk, media: reason, detail: detail });
 }
 
 var worker_default = {
