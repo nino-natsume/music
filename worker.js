@@ -1123,6 +1123,42 @@ function giveUp() {
   S.switching = false;
   setNow("无法播放：所有音源都试过了", true);
   statusModal("fail", "无法播放", "已试过所有可用音源，换一首试试");
+  probeHealth();
+}
+/* 区分「这首歌听不了」和「上游音源整体挂了」。
+   Worker /health 会依次探测媒体兜底链，只发小体积请求，5 秒超时就放弃。
+   判为 down 时才提示服务故障，避免把个别付费/下架曲目误报成服务挂了。 */
+var HEALTH = { state: "", t: 0 };
+function probeHealth() {
+  var now = Date.now();
+  if (HEALTH.state && now - HEALTH.t < 60000) { applyHealth(HEALTH.state); return; }
+  var ctl = null, timer = 0;
+  try { ctl = new AbortController(); timer = setTimeout(function () { ctl.abort(); }, 5000); } catch (e) { ctl = null; }
+  var opt = ctl ? { signal: ctl.signal } : {};
+  fetch(API_HOST ? (API_HOST + "/health") : "/health", opt)
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (j) {
+      if (timer) clearTimeout(timer);
+      var st = j && j.state ? String(j.state) : "";
+      if (!st) return;
+      HEALTH.state = st;
+      HEALTH.t = Date.now();
+      applyHealth(st);
+    })
+    .catch(function () { if (timer) clearTimeout(timer); });
+}
+function applyHealth(st) {
+  if (S.playing || S.busy) return;
+  if (st === "down") {
+    setNow("音源服务暂时不可用，请稍后再试", true);
+    statusModal("fail", "音源服务不可用", "上游接口临时故障，与这首歌无关");
+  } else if (st === "degraded") {
+    setNow("已切换到备用音源", true);
+    statusModal("tip", "主音源异常", "已自动改用备用音源");
+  } else {
+    setNow("无法播放：所有音源都试过了", true);
+    statusModal("fail", "无法播放", "音源正常，可能是这首歌无法播放");
+  }
 }
 function highlightLists() {
   var lis = $("searchList").children;
@@ -1648,6 +1684,37 @@ async function handleApi(url, env) {
   return new Response(resp.body, { status: resp.status, headers: h });
 }
 __name(handleApi, "handleApi");
+/* —— 媒体兜底链 ——
+   原来的实现只认 API_BASE 一个站点：它的搜索/歌词仍然健康，但音频(type=url)
+   与封面(type=pic)代理一旦不可用，/stream 和 /cover 就会整体 502，播放器直接瘫掉
+   （2026-09 线上就是这样坏的：/api 6/6 正常、/lyric 正常，/stream 与 /cover 确定性 502）。
+   现在媒体解析按顺序尝试多个站点，任一可用即可返回；封面另有网易云官方兜底。 */
+var MEDIA_BASES = [
+  "https://api.107211.xyz/api",
+  "https://api.injahow.cn/meting/"
+];
+function mediaReq(base, server, type, id, auth) {
+  const up = new URL(base);
+  up.searchParams.set("server", server);
+  up.searchParams.set("type", type);
+  up.searchParams.set("id", id);
+  up.searchParams.set("r", String(Date.now()));
+  if (auth) up.searchParams.set("auth", auth);
+  return up.toString();
+}
+/* 网易云官方 song/detail：免鉴权、不需加密，直接给出封面大图地址。
+   上面所有站点都拿不到封面时的救命通道（picId 会随 p1/p2/p3 变动，不能写死域名） */
+async function neteaseCover(id) {
+  try {
+    const r = await fetch("https://music.163.com/api/song/detail/?ids=%5B" + encodeURIComponent(id) + "%5D", { headers: { "User-Agent": UA, Referer: "https://music.163.com/" } });
+    if (!r.ok) return "";
+    const j = await r.json();
+    const s = j && j.songs && j.songs[0];
+    return s && s.album && s.album.picUrl ? String(s.album.picUrl) : "";
+  } catch (e) {
+    return "";
+  }
+}
 async function resolveBinary(request, env, kind) {
   const url = new URL(request.url);
   const server = url.searchParams.get("server") || "netease";
@@ -1655,6 +1722,7 @@ async function resolveBinary(request, env, kind) {
   if (!id) return json({ error: "missing id" }, 400);
   const type = kind === "stream" ? "url" : "pic";
   const reqRange = request.headers.get("range");
+  const ctl = kind === "cover" ? "public, max-age=86400" : "no-store";
   void cleanCaches();
   const cacheKey = new Request("https://resolved.invalid/" + kind + "/" + server + "/" + id);
   let target = "";
@@ -1669,28 +1737,45 @@ async function resolveBinary(request, env, kind) {
     }
   }
   if (!target) {
-    const up = buildUpstream(server, type, id);
     const auth = await makeAuth(env, server, type, id);
-    if (auth) up.searchParams.set("auth", auth);
-    const r1 = await fetch(up.toString(), { headers: { "User-Agent": UA } });
-    if (!r1.ok) return json({ error: "upstream " + type + " api " + r1.status }, 502);
-    const ct1 = (r1.headers.get("content-type") || "").toLowerCase();
-    if (ct1.startsWith("audio/") || ct1.startsWith("image/") || ct1.startsWith("video/") || ct1.includes("octet-stream")) {
-      const h = withCors(r1);
-      h.delete("content-encoding");
-      h.delete("content-length");
-      h.set("Cache-Control", kind === "cover" ? "public, max-age=86400" : "no-store");
-      return new Response(r1.body, { status: r1.status, headers: h });
+    const errs = [];
+    for (let i = 0; i < MEDIA_BASES.length; i++) {
+      let r1 = null;
+      try {
+        r1 = await fetch(mediaReq(MEDIA_BASES[i], server, type, id, auth), { headers: { "User-Agent": UA } });
+      } catch (e) {
+        errs.push(MEDIA_BASES[i] + " unreachable");
+        continue;
+      }
+      if (!r1.ok) {
+        errs.push(MEDIA_BASES[i] + " http " + r1.status);
+        continue;
+      }
+      const ct1 = (r1.headers.get("content-type") || "").toLowerCase();
+      if (ct1.startsWith("audio/") || ct1.startsWith("image/") || ct1.startsWith("video/") || ct1.includes("octet-stream")) {
+        const h = withCors(r1);
+        h.delete("content-encoding");
+        h.delete("content-length");
+        h.set("Cache-Control", ctl);
+        return new Response(r1.body, { status: r1.status, headers: h });
+      }
+      const buf = new Uint8Array(await r1.arrayBuffer());
+      const txt = new TextDecoder("utf-8").decode(buf);
+      const lead = txt.trimStart();
+      if (!(lead.startsWith("{") || lead.startsWith("["))) {
+        const h3 = { "content-type": kind === "stream" ? "audio/mpeg" : "image/jpeg", ...CORS };
+        h3["Cache-Control"] = ctl;
+        return new Response(buf, { status: 200, headers: h3 });
+      }
+      target = extractUrl(txt);
+      if (target) break;
+      errs.push(MEDIA_BASES[i] + " no url in json");
     }
-    const buf = new Uint8Array(await r1.arrayBuffer());
-    const lead = new TextDecoder("utf-8").decode(buf.slice(0, 8)).trimStart();
-    if (!(lead.startsWith("{") || lead.startsWith("["))) {
-      const h3 = { "content-type": kind === "stream" ? "audio/mpeg" : "image/jpeg", ...CORS };
-      h3["Cache-Control"] = kind === "cover" ? "public, max-age=86400" : "no-store";
-      return new Response(buf, { status: 200, headers: h3 });
+    if (!target && kind === "cover") {
+      const pic = await neteaseCover(id);
+      if (pic) target = pic;
     }
-    target = extractUrl(new TextDecoder("utf-8").decode(buf));
-    if (!target) return json({ error: kind + " url not found" }, 502);
+    if (!target) return json({ error: kind + " unavailable: " + errs.join("; ") }, 502);
     if (typeof caches !== "undefined") {
       try {
         const store = new Response(JSON.stringify({ u: target, t: Date.now() }), {
@@ -1707,7 +1792,7 @@ async function resolveBinary(request, env, kind) {
   const h2 = withCors(r2);
   h2.delete("content-encoding");
   h2.delete("content-length");
-  h2.set("Cache-Control", kind === "cover" ? "public, max-age=86400" : "no-store");
+  h2.set("Cache-Control", ctl);
   return new Response(r2.body, { status: r2.status, headers: h2 });
 }
 __name(resolveBinary, "resolveBinary");
@@ -1795,6 +1880,41 @@ async function handleLyric(url, env) {
 }
 __name(handleLyric, "handleLyric");
 
+/* 诊断端点 /health：判定媒体链路是「主源健康 / 已自动降级 / 全挂」。
+   只探测封面这种小体积请求，不下载音频，所以很便宜。
+   前端在多次换源后仍然失败时会调它，用来区分「这首歌听不了」和「上游音源挂了」。 */
+var PROBE_ID = "210049";
+async function handleHealth(env) {
+  const auth = await makeAuth(env, "netease", "pic", PROBE_ID);
+  const detail = [];
+  let primaryOk = false, fallbackOk = false;
+  for (let i = 0; i < MEDIA_BASES.length; i++) {
+    let note = "unreachable";
+    try {
+      const r = await fetch(mediaReq(MEDIA_BASES[i], "netease", "pic", PROBE_ID, auth), { headers: { "User-Agent": UA } });
+      const ct = (r.headers.get("content-type") || "").toLowerCase();
+      const good = r.ok && (ct.startsWith("image/") || ct.includes("octet-stream"));
+      note = good ? "ok" : "http " + r.status + " (" + (ct || "no content-type") + ")";
+      if (good && i === 0) primaryOk = true;
+      if (good && i > 0) fallbackOk = true;
+    } catch (e) {
+    }
+    detail.push(MEDIA_BASES[i].replace("https://", "").replace("http://", "") + ": " + note);
+  }
+  if (!primaryOk && !fallbackOk) {
+    const pic = await neteaseCover(PROBE_ID);
+    if (pic) {
+      fallbackOk = true;
+      detail.push("music.163.com/api/song/detail: ok");
+    } else {
+      detail.push("music.163.com/api/song/detail: unavailable");
+    }
+  }
+  const state = primaryOk ? "ok" : fallbackOk ? "degraded" : "down";
+  const reason = state === "down" ? "upstream media unavailable" : state === "degraded" ? "primary source down, using fallback" : "ok";
+  return json({ state: state, media: reason, detail: detail });
+}
+
 var worker_default = {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -1813,6 +1933,7 @@ var worker_default = {
     if (p === "/stream") return resolveBinary(request, env, "stream");
     if (p === "/cover") return resolveBinary(request, env, "cover");
     if (p === "/lyric") return handleLyric(url, env);
+    if (p === "/health") return handleHealth(env);
     return new Response("Not Found", { status: 404, headers: CORS });
   }
 };
