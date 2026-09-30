@@ -7,7 +7,7 @@
  * 生成逻辑：
  *   1. 读取 index.html（播放器页面）
  *   2. 将页面 HTML 转义后嵌入 JS 模板字符串（保证 <\/script>、反引号、${} 安全）
- *   3. 拼接 1.txt 中的后端（/api /stream /cover /lyric + CORS + HMAC 鉴权）
+ *   3. 拼接后端（/api /resolve /stream /cover /lyric /health + CORS + HMAC 鉴权）
  *   4. 写入 worker.js
  */
 "use strict";
@@ -26,16 +26,18 @@ body = body.replace(/`/g, "\\`");            // 反引号
 body = body.replace(/\$\{/g, "\\${");        // ${ 插值
 body = body.replace(/<\/script>/gi, "<\\/script>"); // 模板内结束标签转义
 
-/* —— 后端骨架（来源：d:/desktop/1.txt）——
+/* —— 后端骨架 ——
  * 注意：此段不得包含反引号 ` 或 ${ 或反斜杠转义序列 */
 const BACKEND = `
 /* =========================================================
    后端：Cloudflare Worker 路由
    /          播放器页面
    /api       搜索 / 榜单 / 歌单 JSON（代理 api.107211.xyz）
-   /stream    音频流
-   /cover     封面图
+   /resolve   只回音频/封面的真实地址（播放器主用这条路）
+   /stream    307 跳到音频地址
+   /cover     307 跳到封面地址
    /lyric     歌词文本
+   /health    诊断：接口能否解出地址
    ========================================================= */
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
@@ -124,7 +126,22 @@ async function handleApi(url, env) {
     const auth = await makeAuth(env, server, type, id);
     if (auth) up.searchParams.set("auth", auth);
   }
-  const resp = await fetch(up.toString(), { headers: { "User-Agent": UA, Referer: API_BASE } });
+  /* url / pic 本身是「跳转到 CDN 的一层」：绝不跟随，跟到底就是拿音频字节，
+     而网易云 CDN 屏蔽 Cloudflare 出口段，2026-09 线上实测确定性 525。
+     这里停在 302 上，把 Location 如实交回浏览器。 */
+  const manual = type === "url" || type === "pic";
+  const resp = await fetch(up.toString(), {
+    headers: { "User-Agent": UA, Referer: API_BASE },
+    redirect: manual ? "manual" : "follow"
+  });
+  if (manual && resp.status >= 300 && resp.status < 400) {
+    const loc = resp.headers.get("location") || "";
+    try { if (resp.body) resp.body.cancel(); } catch (e) {}
+    if (!loc) return json({ error: "upstream redirect without location" }, 502);
+    const h = new Headers({ "Cache-Control": "no-store", ...CORS });
+    h.set("Location", new URL(loc, up.toString()).toString());
+    return new Response(null, { status: 307, headers: h });
+  }
   const h = withCors(resp);
   h.delete("content-encoding");
   h.delete("content-length");
@@ -146,11 +163,11 @@ async function handleApi(url, env) {
   return new Response(resp.body, { status: resp.status, headers: h });
 }
 __name(handleApi, "handleApi");
-/* —— 媒体兜底链 ——
-   原来的实现只认 API_BASE 一个站点：它的搜索/歌词仍然健康，但音频(type=url)
-   与封面(type=pic)代理一旦不可用，/stream 和 /cover 就会整体 502，播放器直接瘫掉
-   （2026-09 线上就是这样坏的：/api 6/6 正常、/lyric 正常，/stream 与 /cover 确定性 502）。
-   现在媒体解析按顺序尝试多个站点，任一可用即可返回；封面另有网易云官方兜底。 */
+/* —— 媒体地址解析（只解地址，绝不中转音频字节）——
+   网易云 CDN（m80x.music.126.net 等）屏蔽 Cloudflare 出口 IP，Worker 顺着 302
+   去取流必然 525；浏览器不在 Cloudflare 网络里，直连是通的。所以 Worker 只做一件事：
+   用 redirect:"manual" 把地址解出来（它手上有 HMAC 密钥和兜底链），
+   音频字节由浏览器直接向 CDN 要，进度条的 Range 拖动也照常可用。 */
 var MEDIA_BASES = [
   "https://api.107211.xyz/api",
   "https://api.injahow.cn/meting/"
@@ -177,87 +194,104 @@ async function neteaseCover(id) {
     return "";
   }
 }
-async function resolveBinary(request, env, kind) {
-  const url = new URL(request.url);
+__name(neteaseCover, "neteaseCover");
+/* 向某个站点问一次「这首歌的文件在哪」：
+   3xx → 读 Location；直接给二进制 → 地址就是它自己；给 JSON → 挖里面的 url。
+   三条路都不成立就换下一个站点。 */
+async function askOnce(base, server, type, id, auth) {
+  const u = mediaReq(base, server, type, id, auth);
+  let r;
+  try {
+    r = await fetch(u, { headers: { "User-Agent": UA }, redirect: "manual" });
+  } catch (e) {
+    return { url: "", note: "unreachable" };
+  }
+  if (r.status >= 300 && r.status < 400) {
+    let loc = r.headers.get("location") || "";
+    try { if (r.body) r.body.cancel(); } catch (e) {}
+    if (!loc) return { url: "", note: "redirect without location" };
+    try { loc = new URL(loc, u).toString(); } catch (e) { }
+    return { url: loc, note: "redirect" };
+  }
+  if (!r.ok) return { url: "", note: "http " + r.status };
+  const ct = (r.headers.get("content-type") || "").toLowerCase();
+  if (ct.indexOf("audio/") === 0 || ct.indexOf("image/") === 0 || ct.indexOf("video/") === 0 || ct.indexOf("octet-stream") >= 0) {
+    try { if (r.body) r.body.cancel(); } catch (e) {}
+    return { url: u, note: "direct binary" };
+  }
+  let txt = "";
+  try { txt = new TextDecoder("utf-8").decode(await r.arrayBuffer()); } catch (e) {
+    return { url: "", note: "unreadable body" };
+  }
+  const lead = txt.trimStart();
+  if (!(lead.startsWith("{") || lead.startsWith("["))) return { url: "", note: "not json" };
+  const u2 = extractUrl(txt);
+  return u2 ? { url: u2, note: "json" } : { url: "", note: "json without url" };
+}
+__name(askOnce, "askOnce");
+/* 解析结果缓存 90 秒：够挡住同一次播放里的重复解析，也不至于把短效地址存太久 */
+var RESOLVE_TTL = 90 * 1000;
+async function resolveTarget(url, env, type) {
   const server = url.searchParams.get("server") || "netease";
   const id = url.searchParams.get("id") || "";
-  if (!id) return json({ error: "missing id" }, 400);
-  const type = kind === "stream" ? "url" : "pic";
-  const reqRange = request.headers.get("range");
-  const ctl = kind === "cover" ? "public, max-age=86400" : "no-store";
-  void cleanCaches();
-  const cacheKey = new Request("https://resolved.invalid/" + kind + "/" + server + "/" + id);
+  if (!id) return { code: 400, error: "missing id" };
+  const ck = new Request("https://resolved.invalid/" + type + "/" + server + "/" + id);
   let target = "";
+  let via = "cache";
   if (typeof caches !== "undefined") {
     try {
-      const hit = await caches.default.match(cacheKey);
+      const hit = await caches.default.match(ck);
       if (hit) {
-        const obj = JSON.parse(await hit.text());
-        if (obj && obj.t && Date.now() - obj.t < 60 * 1000) target = obj.u || "";
+        const o = JSON.parse(await hit.text());
+        if (o && o.u && Date.now() - o.t < RESOLVE_TTL) target = String(o.u);
       }
     } catch (e) {
     }
   }
   if (!target) {
+    void cleanCaches();
     const auth = await makeAuth(env, server, type, id);
     const errs = [];
     for (let i = 0; i < MEDIA_BASES.length; i++) {
-      let r1 = null;
-      try {
-        r1 = await fetch(mediaReq(MEDIA_BASES[i], server, type, id, auth), { headers: { "User-Agent": UA } });
-      } catch (e) {
-        errs.push(MEDIA_BASES[i] + " unreachable");
-        continue;
-      }
-      if (!r1.ok) {
-        errs.push(MEDIA_BASES[i] + " http " + r1.status);
-        continue;
-      }
-      const ct1 = (r1.headers.get("content-type") || "").toLowerCase();
-      if (ct1.startsWith("audio/") || ct1.startsWith("image/") || ct1.startsWith("video/") || ct1.includes("octet-stream")) {
-        const h = withCors(r1);
-        h.delete("content-encoding");
-        h.delete("content-length");
-        h.set("Cache-Control", ctl);
-        return new Response(r1.body, { status: r1.status, headers: h });
-      }
-      const buf = new Uint8Array(await r1.arrayBuffer());
-      const txt = new TextDecoder("utf-8").decode(buf);
-      const lead = txt.trimStart();
-      if (!(lead.startsWith("{") || lead.startsWith("["))) {
-        const h3 = { "content-type": kind === "stream" ? "audio/mpeg" : "image/jpeg", ...CORS };
-        h3["Cache-Control"] = ctl;
-        return new Response(buf, { status: 200, headers: h3 });
-      }
-      target = extractUrl(txt);
-      if (target) break;
-      errs.push(MEDIA_BASES[i] + " no url in json");
+      const got = await askOnce(MEDIA_BASES[i], server, type, id, auth);
+      errs.push(MEDIA_BASES[i].replace("https://", "") + ": " + got.note);
+      if (got.url) { target = got.url; via = got.note; break; }
     }
-    if (!target && kind === "cover") {
+    if (!target && type === "pic") {
       const pic = await neteaseCover(id);
-      if (pic) target = pic;
+      if (pic) { target = pic; via = "music.163.com"; }
+      else errs.push("music.163.com: no cover");
     }
-    if (!target) return json({ error: kind + " unavailable: " + errs.join("; ") }, 502);
+    if (!target) return { code: 502, error: type + " unavailable: " + errs.join("; ") };
     if (typeof caches !== "undefined") {
       try {
-        const store = new Response(JSON.stringify({ u: target, t: Date.now() }), {
-          headers: { "content-type": "application/json", "Cache-Control": "public, max-age=60", "x-cache-until": String(Date.now() + 60000) }
-        });
-        await caches.default.put(cacheKey, store);
+        await caches.default.put(ck, new Response(JSON.stringify({ u: target, t: Date.now() }), {
+          headers: { "content-type": "application/json", "Cache-Control": "public, max-age=90", "x-cache-until": String(Date.now() + RESOLVE_TTL) }
+        }));
       } catch (e) {
       }
     }
   }
-  const fh2 = { "User-Agent": UA };
-  if (reqRange) fh2["Range"] = reqRange;
-  const r2 = await fetch(target, { headers: fh2 });
-  const h2 = withCors(r2);
-  h2.delete("content-encoding");
-  h2.delete("content-length");
-  h2.set("Cache-Control", ctl);
-  return new Response(r2.body, { status: r2.status, headers: h2 });
+  return { url: target, server: server, id: id, type: type, via: via };
 }
-__name(resolveBinary, "resolveBinary");
+__name(resolveTarget, "resolveTarget");
+/* /resolve：只回地址。播放器和诊断都用它，不再经过任何字节中转。 */
+async function handleResolve(url, env) {
+  const r = await resolveTarget(url, env, url.searchParams.get("type") === "pic" ? "pic" : "url");
+  if (!r.url) return json({ error: r.error }, r.code || 502);
+  return json({ url: r.url, server: r.server, id: r.id, type: r.type, via: r.via });
+}
+__name(handleResolve, "handleResolve");
+/* /stream 与 /cover：307 跳到解出来的地址。
+   客户端的 <audio> / <img> 跟完这个跳转后自己向 CDN 发请求，Range 由浏览器原样转交。 */
+async function handleMedia(url, env, kind) {
+  const r = await resolveTarget(url, env, kind === "cover" ? "pic" : "url");
+  if (!r.url) return json({ error: r.error }, r.code || 502);
+  const h = new Headers({ "Cache-Control": kind === "cover" ? "public, max-age=3600" : "no-store", ...CORS });
+  h.set("Location", r.url);
+  return new Response(null, { status: 307, headers: h });
+}
+__name(handleMedia, "handleMedia");
 function extractUrl(rawText) {
   const t = (rawText || "").trim();
   if (!t) return "";
@@ -342,47 +376,37 @@ async function handleLyric(url, env) {
 }
 __name(handleLyric, "handleLyric");
 
-/* 诊断端点 /health：判定媒体链路是「主源健康 / 已自动降级 / 全挂」。
-   音频用 Range: bytes=0-0 探测——只要第一个字节，成功时也不会整首下载；
-   失败时（本例的 525）会立刻返回，所以正反两种情况都很便宜。
-   前端据此决定媒体走 Worker 代理还是让浏览器直连上游：
-   网易云 CDN 会屏蔽 Cloudflare 出口 IP，Worker 回源必然 525，
-   而浏览器不在 Cloudflare 网络里，直连是通的。 */
+/* 诊断端点 /health：判定「接口能不能把播放地址解出来」。
+   关键改动：不再向 CDN 要字节（旧版用 Range: bytes=0-0 探测，失败必 525，
+   整轮 /health 要 7 秒以上，前端 4 秒超时后判定链路不可用，于是全部走代理、全部失败）。
+   现在停在 302 上，/health 是毫秒级的；音频/封面本身能不能放，
+   取决于浏览器直连 CDN，那不是 Worker 能测、也不该由 Worker 代劳的事。 */
 var PROBE_ID = "210049";
-async function probeMediaOne(base, type, id, auth, isAudio) {
-  try {
-    const h = { "User-Agent": UA };
-    if (isAudio) h["Range"] = "bytes=0-0";
-    const r = await fetch(mediaReq(base, "netease", type, id, auth), { headers: h });
-    const ct = (r.headers.get("content-type") || "").toLowerCase();
-    const good = r.ok && (ct.indexOf("audio/") === 0 || ct.indexOf("image/") === 0 || ct.indexOf("video/") === 0 || ct.indexOf("octet-stream") >= 0);
-    return { good: good, note: good ? "ok" : "http " + r.status + " (" + (ct || "no content-type") + ")" };
-  } catch (e) {
-    return { good: false, note: "unreachable" };
-  }
-}
 async function handleHealth(env) {
-  const authU = await makeAuth(env, "netease", "url", PROBE_ID);
-  const authP = await makeAuth(env, "netease", "pic", PROBE_ID);
-  const detail = [];
-  let audioOk = false, coverOk = false;
-  for (let i = 0; i < MEDIA_BASES.length; i++) {
-    const host = MEDIA_BASES[i].replace("https://", "").replace("http://", "");
-    const a = await probeMediaOne(MEDIA_BASES[i], "url", PROBE_ID, authU, true);
-    const p = await probeMediaOne(MEDIA_BASES[i], "pic", PROBE_ID, authP, false);
-    if (a.good) audioOk = true;
-    if (p.good) coverOk = true;
-    detail.push(host + ": audio " + a.note + " / cover " + p.note);
-  }
-  if (!coverOk) {
-    const pic = await neteaseCover(PROBE_ID);
-    if (pic) { coverOk = true; detail.push("music.163.com/api/song/detail: cover ok"); }
-    else detail.push("music.163.com/api/song/detail: cover unavailable");
-  }
+  const u = new URL("https://probe.invalid/health");
+  const pu = new URL(u.toString());
+  pu.searchParams.set("server", "netease");
+  pu.searchParams.set("type", "url");
+  pu.searchParams.set("id", PROBE_ID);
+  const pp = new URL(u.toString());
+  pp.searchParams.set("server", "netease");
+  pp.searchParams.set("type", "pic");
+  pp.searchParams.set("id", PROBE_ID);
+  const both = await Promise.all([resolveTarget(pu, env, "url"), resolveTarget(pp, env, "pic")]);
+  const audioOk = !!both[0].url;
+  const coverOk = !!both[1].url;
   const state = audioOk && coverOk ? "ok" : !audioOk && !coverOk ? "down" : "degraded";
-  const reason = state === "down" ? "upstream media unavailable from Cloudflare; use direct media" : state === "degraded" ? "partial media path available" : "ok";
-  return json({ state: state, audio: audioOk, cover: coverOk, media: reason, detail: detail });
+  return json({
+    state: state,
+    audio: audioOk,
+    cover: coverOk,
+    audioVia: both[0].via || (audioOk ? "" : both[0].error || "unavailable"),
+    coverVia: both[1].via || (coverOk ? "" : both[1].error || "unavailable"),
+    media: "client requests CDN directly; worker only resolves addresses",
+    detail: [both[0].via || both[0].error || "", both[1].via || both[1].error || ""].filter(Boolean)
+  });
 }
+__name(handleHealth, "handleHealth");
 
 var worker_default = {
   async fetch(request, env) {
@@ -399,8 +423,9 @@ var worker_default = {
       return new Response(HTML, { headers: hb });
     }
     if (p === "/api" || p.startsWith("/api/")) return handleApi(url, env);
-    if (p === "/stream") return resolveBinary(request, env, "stream");
-    if (p === "/cover") return resolveBinary(request, env, "cover");
+    if (p === "/resolve") return handleResolve(url, env);
+    if (p === "/stream") return handleMedia(url, env, "stream");
+    if (p === "/cover") return handleMedia(url, env, "cover");
     if (p === "/lyric") return handleLyric(url, env);
     if (p === "/health") return handleHealth(env);
     return new Response("Not Found", { status: 404, headers: CORS });
@@ -417,7 +442,9 @@ const out = `/* =========================================================
  * 页面功能：
  *   - 单页：搜索（输入即搜）+ 登录 + 播放 + 全页歌词栏（左图右词）
  *   - 无多余的推荐 / 歌单 / 排行榜等功能
- * 后端路由：/api /stream /cover /lyric（代理 api.107211.xyz）
+ * 后端路由：/api /resolve /stream /cover /lyric /health
+ * 媒体策略：Worker 只解析地址（redirect:"manual"），音频与封面由浏览器直连 CDN。
+ *   网易云 CDN 屏蔽 Cloudflare 出口 IP，Worker 中转字节必然 525，别再走那条路。
  * ========================================================= */
 var HTML = \`${body}\`;
 ${BACKEND}

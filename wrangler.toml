@@ -23,5 +23,8 @@ compatibility_date = "2025-01-01"
 # 说明：
 # - worker.js 由 build.js 从 index.html 自动生成
 # - 修改页面样式/逻辑后：改 index.html → 运行 `node build.js` → `wrangler deploy`
+# - 媒体链路：Worker 只解析地址（/resolve、/stream、/cover 都是 307），
+#   音频与封面字节由浏览器直连网易云 CDN。CDN 屏蔽 Cloudflare 出口 IP，
+#   任何在 Worker 里回源取流改法都会 525，别再改回去
 # - 登录使用 oauth.107211.xyz（GitHub / Twitter / Microsoft），
 #   登录后会自动带参数跳回本页面展示用户信息
