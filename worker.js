@@ -1841,6 +1841,41 @@ function stopAudio() {
   audio.removeAttribute("src");
   try { audio.load(); } catch (e) {}
 }
+function resetPlaybackState() {
+  stopAudio();
+  clearLrc();
+  S.list = [];
+  S.idx = -1;
+  S.resumeT = 0;
+  S.seekAt = 0;
+  progRestored = false;
+  progSavedAt = 0;
+  if (audio) {
+    try { audio.currentTime = 0; } catch (e) {}
+  }
+  $("nowTitle").textContent = "未在播放";
+  setArtist("");
+  setNow("", false);
+  var cov = DEFAULT_ART;
+  $("coverImg").src = cov;
+  $("lyrBg").style.backgroundImage = "url('" + cov + "')";
+  imgFallback($("coverImg"));
+  renderQueue();
+  highlightLists();
+  syncMini();
+  setPlaying(false);
+  /* 进度条与时间码一起归零：宽度/滑块用 onTime 那套同款写法，
+     否则退登后主界面还留着上一首的 00:42 / 03:51，看着像还在放 */
+  var s = "0%";
+  $("progFill").style.width = s;
+  $("lyrProgFill").style.width = s;
+  if (progKnob) progKnob.style.left = s;
+  if (lyrProgKnob) lyrProgKnob.style.left = s;
+  $("curTime").textContent = "00:00";
+  $("durTime").textContent = "00:00";
+  $("lyrCur").textContent = "00:00";
+  $("lyrDur").textContent = "00:00";
+}
 function setQueue(list, idx) {
   S.list = list.slice();
   S.idx = -1;
@@ -2908,6 +2943,7 @@ function openLogin() {
 function closeLogin() { $("loginLayer").classList.remove("on"); }
 function doLogout() {
   clearUser();
+  resetPlaybackState();
   closeLogin();
   applyOAuth();   /* 顺带把播放条上的账号清单一起收掉 */
 }
@@ -2927,6 +2963,7 @@ function parseLoginReturn() {
       at: Date.now()
     });
     if (history.replaceState) history.replaceState(null, "", location.pathname + location.hash);
+    progRestored = false;  /* 登录成功后，允许立即恢复上次播放进度 */
   }
   applyOAuth();
 }
