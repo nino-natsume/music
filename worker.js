@@ -334,42 +334,15 @@ body.paused .cov.live::after{animation-play-state:paused}
 body.paused .p-now .ml .eq i{animation-play-state:paused}
 @keyframes miniIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 
-/* 播放条主体 + 账号清单共用一张卡，圆角和阴影都挂在 .p-bar 上 */
+/* 播放条那张卡，圆角和阴影挂在 .p-bar 上 */
 .p-bar{position:relative}
 .player .p-bar{background:var(--d0);pointer-events:auto}
-/* 账号清单：默认 hidden，只有登录后才出现。整行横向滚动，
-   清单再多也只占一行高度，不把播放条顶得老高。 */
-.p-acct{display:flex;align-items:center;gap:10px;height:40px;padding:0 14px 8px}
-.p-acct .pa-me{
-  flex:none;display:flex;align-items:center;gap:6px;height:26px;padding:0 10px 0 4px;
-  border-radius:13px;color:var(--di2);font-size:12px;max-width:150px;
-  transition:color .15s,background .15s;
-}
-.p-acct .pa-me:hover{color:var(--di);background:rgba(255,255,255,.08)}
-.p-acct .pa-me .av{
-  position:relative;width:20px;height:20px;flex:none;border-radius:50%;overflow:hidden;
-  background:var(--acc);color:#fff;font-size:10px;font-weight:600;
-  display:flex;align-items:center;justify-content:center;
-}
-.p-acct .pa-me .av img{width:100%;height:100%;object-fit:cover}
-.p-acct .pa-me .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.p-acct .pa-lists{
-  flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:6px;
-  overflow-x:auto;overflow-y:hidden;scrollbar-width:none;
-  -webkit-overflow-scrolling:touch;
-}
-.p-acct .pa-lists::-webkit-scrollbar{display:none}
-.p-acct .chip{
-  flex:none;display:flex;align-items:center;gap:5px;height:26px;padding:0 10px;
-  border-radius:13px;background:rgba(255,255,255,.07);color:var(--di2);font-size:12px;
-  white-space:nowrap;transition:color .15s,background .15s;
-}
-.p-acct .chip:hover{background:rgba(255,255,255,.14);color:var(--di)}
-.p-acct .chip .cc{font-size:11px;opacity:.7;font-variant-numeric:tabular-nums}
-/* 播放条多了一行账号清单，正文底部要多让出这段高度（--player-ex 由 JS 的
-   has-acct 切换，两种情况都不写死数值） */
-main.wrap{--player-ex:0px;padding-bottom:calc(var(--player-h) + var(--player-ex) + 32px)}
-body.has-acct main.wrap{--player-ex:48px}
+/* 播放条只有一行：封面 + 歌名 + 控制组。账号信息和收听记录 / 歌单清单
+   都不再挂在这条上（移动端和电脑端都不要），入口统一在「我的音乐」里。
+   下面这个 padding-bottom 就是正文给播放条留的唯一一处高度 —— 账号清单行
+   已经拿掉了，不需要再留第二行的空间（原来这里有个 --player-ex 跟着 body
+   标签上的 has-acct 变，特意保留说明以免以后又把它加回来）。 */
+main.wrap{padding-bottom:calc(var(--player-h) + 32px)}
 
 .p-ctrl{display:flex;align-items:center;gap:8px;flex:none}
 /* 圆形幽灵按钮 */
@@ -505,9 +478,10 @@ body.has-acct main.wrap{--player-ex:48px}
 .lyr .lyr-ctrl{flex:1;display:flex;align-items:center;justify-content:center;gap:6px}
 .lyr .lyr-tools{flex:none;display:flex;align-items:center;gap:8px;width:132px;justify-content:flex-end}
 /* 播放方式：药丸按钮 + 纯 CSS 图标，三种模式各一个形状（同样不用 SVG / 字体符号）
-   造型跟播放条右侧那些清单按钮（.p-acct .chip）对齐：同样的胶囊圆角、同样的
-   半透明填充底、同样的小字号。原来这里是「描边 + 深底」的路子，在两个药丸
-   摆在一起的歌词底栏里看着像另一个控件。 */
+   造型走「胶囊 + 半透明填充 + 小字号」这条路，跟播放条上曾经那些清单药丸一致。
+   原来这里是「描边 + 深底」，跟旁边那颗幽灵圆形按钮不是一个体系，看着像外挂
+   进来的控件。清单药丸本身已经随账号行一起从播放组件里拿掉了，这里留着这套
+   尺寸只是因为它和底栏另一颗药丸按钮摆在一起要看着平。 */
 .lyr .ic-mode{
   width:auto;height:26px;padding:0 10px 0 8px;gap:6px;border-radius:13px;
   background:rgba(255,255,255,.07);box-shadow:none;
@@ -718,8 +692,6 @@ body.has-acct main.wrap{--player-ex:48px}
   .lyr .lyr-tools,.lyr .lyr-time{width:64px}
   .lyr .ic-mode{padding:0 9px 0 8px;gap:6px}
   .lyr .ic-mode .tx{display:none}
-  .p-acct{height:38px;padding:0 10px 8px;gap:8px}
-  .p-acct .pa-me{max-width:92px}
   .queue{right:12px;bottom:calc(var(--player-h) + 24px)}
   .srcpop{right:12px}
 }
@@ -750,15 +722,13 @@ body.has-acct main.wrap{--player-ex:48px}
 /* ============ 仅移动端：播放组件 ============
    1) 上 / 播放 / 下 挪到右侧，歌名留在左侧
    2) 歌名必须能显示出来
-   3) 播放组件内不显示用户信息和收听记录
 
    桌面那版是 1fr auto 1fr 三列，控制组正好落在页面正中。窄屏上这么排是
    反的：歌名左边只分到 1fr，而右边还有一整列 1fr 的空位（p-time 被藏了，
    但列还在），标题被挤成几个字。所以这里换成两列：歌名吃满余量，按钮贴右。
 
-   账号那一行（头像 + 收听记录 / 歌单清单）在小屏上又占高度又挤歌名，
-   整条收起来。正文底部多让的那段高度也得跟着归零，不然会留一块空白。
-   歌单和收听记录在「我的音乐」里都还在，只是不再往播放条上挂。
+   账号信息和收听记录 / 歌单清单已经整条从播放组件里拿掉了（桌面端也不要），
+   这里只剩排版的事。
 
    竖屏按 max-width 判，横过来的手机（宽 600~900）靠 pointer:coarse 兜住，
    触屏笔记本不在这条规则里。 */
@@ -770,9 +740,6 @@ body.has-acct main.wrap{--player-ex:48px}
   /* 歌名吃掉剩余宽度，歌手名让位 —— 先保证标题读得出来 */
   .p-now .t .tt{flex:1 1 auto}
   .p-now .t .by{flex:0 1 auto;max-width:40%}
-  /* 播放组件内不显示用户信息和收听记录 */
-  .p-acct{display:none}
-  body.has-acct main.wrap{--player-ex:0px}
 }
 /* 矮屏横屏（手机横过来、分屏、桌面小窗）：纵向空间是稀缺资源。
    顶栏和底栏各占 53+79=132px，320 高的屏上歌词只剩 186px。
@@ -811,7 +778,7 @@ body.has-acct main.wrap{--player-ex:48px}
   .srcpop .sp-x::before{content:"";position:absolute;inset:-10px}
   .queue .qh .x::before{content:"";position:absolute;inset:-8px}
   /* 播放方式按钮例外：它是胶囊，走上面那条 40px min-height 会把视觉高度
-     撑到 40px，跟旁边那些 26px 的清单药丸对不上了。这里把外观压回 26px，
+     撑到 40px，跟底栏另一颗药丸按钮对不上。这里把外观压回 26px，
      触摸面积改用 ::before 外扩补足（inset:-7px → 26+14=40px），
      点得着但看起来还是那颗小药丸。 */
   .lyr .ic-mode{min-height:26px}
@@ -895,8 +862,7 @@ body.has-acct main.wrap{--player-ex:48px}
 .player .prog:hover{height:4px}
 .player .prog .fill{background:var(--primary-2);transition:width .1s linear}
 .player .prog .knob{display:none}
-/* 圆角、阴影、顶盖都交给 .p-bar：账号清单是它下面的一行，
-   圆角留在 .p-row 上会被撑开一条直角边。
+/* 圆角、阴影、顶盖都交给 .p-bar：圆角留在 .p-row 上会被撑开一条直角边。
    这里不能加 overflow:hidden —— 顶盖是伸到 .p-bar 外面去盖住进度条那一截的，
    一裁掉进度条就从卡片里「浮」出来了（原来挂在 .p-row 上时没有这个问题）。 */
 .player .p-bar{border-radius:0 0 var(--r-xl) var(--r-xl);box-shadow:var(--e2)}
@@ -909,14 +875,6 @@ body.has-acct main.wrap{--player-ex:48px}
   position:relative;height:calc(var(--player-h) - 4px);padding:0 12px;
   border-radius:0;box-shadow:none;
 }
-/* 账号清单跟着这张卡的 surface 走 */
-.p-acct{background:var(--surface-d)}
-.p-acct .pa-me{border-radius:var(--r-full)}
-.p-acct .pa-me:hover{background:rgba(228,226,233,.1);color:var(--di)}
-.p-acct .pa-me .av{border-radius:var(--r-full);background:var(--primary);color:var(--on-primary)}
-.p-acct .chip{background:rgba(228,226,233,.1);border-radius:var(--r-full)}
-.p-acct .chip:hover{background:rgba(228,226,233,.18);color:var(--di)}
-
 .cov{border:0;border-radius:var(--r-sm);background:var(--surface-d2)}
 .cov .cov-mask{background:rgba(0,0,0,.5);border-radius:var(--r-sm)}
 .cov.busy .cov-mask::before{border-color:rgba(228,226,233,.28);border-top-color:var(--primary-2)}
@@ -960,9 +918,9 @@ body.has-acct main.wrap{--player-ex:48px}
 .lyr .lyr-prog{height:4px;border-radius:var(--r-full);background:#3a3a44}
 .lyr .lyr-prog .fill{background:var(--primary-2)}
 .lyr .lyr-prog .knob{display:none}
-/* 播放方式：跟播放条右侧清单按钮（.p-acct .chip）同一套胶囊 + 填充底。
-   这里原本是 M3 outlined（1px 实边描边），和旁边那颗幽灵圆形按钮、
-   以及播放条上的清单药丸都不一样，看着像外挂进来的。 */
+/* 播放方式：胶囊 + 填充底，跟深色段同一套尺寸。
+   这里原本是 M3 outlined（1px 实边描边），跟旁边那颗幽灵圆形按钮不是一个
+   体系，在底栏里看着像外挂进来的控件。 */
 .lyr .ic-mode{
   height:26px;padding:0 10px 0 8px;gap:6px;border-radius:13px;
   background:rgba(228,226,233,.1);border:0;color:var(--di2);
@@ -1130,7 +1088,7 @@ body.has-acct main.wrap{--player-ex:48px}
   </div>
 </header>
 
-<!-- 底部留白走 CSS（main.wrap）：播放条多出账号清单那一行时，--player-ex 会变大 -->
+<!-- 底部留白走 CSS（main.wrap）：固定让出一个 --player-h 高度的播放条 -->
 <main class="wrap">
   <section class="hero" id="radioHero">
     <form class="search" id="searchForm" autocomplete="off">
@@ -1202,14 +1160,6 @@ body.has-acct main.wrap{--player-ex:48px}
       <button class="ic ic-skip ic-next" id="btnNext" title="下一首" aria-label="下一首"></button>
     </div>
     <div class="p-time"><span id="curTime">00:00</span><span class="sep">/</span><span id="durTime">00:00</span></div>
-  </div>
-  <!-- 账号清单：只有 OAUTH_ON=true 且已登录时才出现（默认整条都没有）。
-       数据来源就是「我的音乐」里的收听记录 + 导入的歌单，点一个即以它为队列开唱。 -->
-  <div class="p-acct" id="pAcct" hidden>
-    <button class="pa-me" id="paMe" type="button" title="账号">
-      <span class="av" id="paAv"></span><span class="nm" id="paNm"></span>
-    </button>
-    <div class="pa-lists" id="paLists"></div>
   </div>
   </div>
 </footer>
@@ -2767,8 +2717,6 @@ function renderMine() {
   $("plEmpty").hidden = PLS.length > 0;
 
   sec.hidden = mineCount() === 0;
-  /* 记录和歌单一变，播放条上的账号清单也要跟着重画（同一份数据，两处入口） */
-  renderAcctBar();
 }
 /* 记录条目还原成能播的形状；au 丢了就只剩 id，播放时会重新解析 */
 function histList() {
@@ -2893,7 +2841,7 @@ function loadProviders() {
   }).catch(function () {});
 }
 /* ---------- 登录 ----------
-   整套账号功能（登录 / 续播进度 / 播放条账号清单）都由 Worker 侧的 OAUTH_ON 开关控制，
+   整套账号功能（登录 / 续播进度 / 收听记录）都由 Worker 侧的 OAUTH_ON 开关控制，
    默认关：没配这个变量就一点都不出现，开关写在 wrangler.toml 的 [vars] 或 Dashboard。
    页面自己不问「要不要显示」，而是启动时向 Worker 要一次 /config 结论。 */
 var CFG = { oauth: false, loaded: false };
@@ -2917,7 +2865,6 @@ function applyOAuth() {
   if (btn) btn.hidden = !CFG.oauth;
   var u = (CFG.oauth && currentUser()) ? currentUser() : null;
   renderUser(u);
-  renderAcctBar();
   /* 收听记录跟着登录态走：登录后立刻露出来，退出后立刻收回去。
      renderMine() 自带 histOn 门控，这里不用再判登录态。 */
   renderMine();
@@ -3002,7 +2949,7 @@ function doLogout() {
   clearUser();
   resetPlaybackState();
   closeLogin();
-  applyOAuth();   /* 顺带把播放条上的账号清单一起收掉 */
+  applyOAuth();   /* 顺带把「我的音乐」里的收听记录一起收掉 */
 }
 function parseLoginReturn() {
   var q = new URLSearchParams(location.search);
@@ -3104,65 +3051,6 @@ function applySeekAt() {
   updateLrc();
 }
 
-/* =========================================================
-   播放条上的账号清单
-   ------------------------------------------------------------
-   OAuth 身份和网易云账号没有关系，meting 也没有「按用户列歌单」的接口，
-   所以这里的「账号清单」就是登录账号名下的本地清单：收听记录 + 导入的歌单。
-   点一个就以它为队列开唱。开关关着或没登录时整条都不出现。
-   ========================================================= */
-function acctLists() {
-  var out = [];
-  /* 收听记录只在 OAUTH_ON=true 时进清单。整条账号栏已被 renderAcctBar 门控，
-     这里再挡一道 —— 函数语义完整，以后多个调用点也不会漏出去。 */
-  if (CFG.oauth && HIST.length) out.push({ k: "hist", name: "收听记录", n: HIST.length });
-  for (var i = 0; i < PLS.length; i++) {
-    var p = PLS[i];
-    out.push({ k: "pl:" + p.id, name: "歌单 " + p.id, n: p.n || 0 });
-  }
-  return out;
-}
-function playAcctList(k) {
-  if (k === "hist") {
-    var hl = histList();
-    if (!hl.length) { statusModal("tip", "收听记录是空的", "搜首歌听听就有了"); return; }
-    setQueue(hl, 0);
-    statusModal("ok", "已加入播放", "收听记录 " + hl.length + " 首");
-    return;
-  }
-  if (k.slice(0, 3) === "pl:") openPlaylist({ id: k.slice(3) });
-}
-function renderAcctBar() {
-  var bar = $("pAcct");
-  if (!bar) return;
-  var u = (CFG.oauth && currentUser()) ? currentUser() : null;
-  if (!u || !u.name) {
-    bar.hidden = true;
-    document.body.classList.remove("has-acct");
-    return;
-  }
-  bar.hidden = false;
-  document.body.classList.add("has-acct");
-  var av = $("paAv");
-  av.innerHTML = u.avatar ? '<img src="' + escAttr(u.avatar) + '" alt="">' : escText(u.name.charAt(0));
-  var avi = av.querySelector("img");
-  if (avi) imgFallback(avi);
-  $("paNm").textContent = u.name;
-  var box = $("paLists");
-  box.innerHTML = "";
-  var ls = acctLists();
-  if (!ls.length) return;   /* 没清单就空着，不提示 */
-  ls.forEach(function (l) {
-    var b = document.createElement("button");
-    b.type = "button";
-    b.className = "chip";
-    b.title = "播放「" + l.name + "」";
-    b.innerHTML = '<span class="cn">' + escText(l.name) + '</span>' + (l.n ? '<span class="cc">' + l.n + '</span>' : '');
-    b.onclick = function () { playAcctList(l.k); };
-    box.appendChild(b);
-  });
-}
-
 /* ---------- 事件 ---------- */
 $("kw").addEventListener("input", function () {
   clearTimeout(searchTimer);
@@ -3212,7 +3100,6 @@ $("coverBtn").onclick = openLyrics;
 $("nowBtn").onclick = openLyrics;
 $("btnLyrClose").onclick = closeLyrics;
 $("btnLogin").onclick = openLogin;
-$("paMe").onclick = openLogin;
 $("btnCloseLogin").onclick = closeLogin;
 $("mineCard").addEventListener("click", function (e) {
   var t = e.target.closest ? e.target.closest(".tab") : null;
