@@ -12,6 +12,13 @@
 <link rel="dns-prefetch" href="https://api.107211.xyz">
 <link rel="preconnect" href="https://t.alcy.cc">
 <link rel="dns-prefetch" href="https://t.alcy.cc">
+<link rel="preconnect" href="https://jsd.onmicrosoft.cn" crossorigin>
+<link rel="dns-prefetch" href="https://jsd.onmicrosoft.cn">
+<!-- 歌词栏字体：Maple Mono CN（JetBrains Mono + Maple Mono 合成，中英文 2:1 等宽）。
+     走 jsDelivr 国内镜像 jsd.onmicrosoft.cn，registry.npmmirror.com 的 files 路径
+     对 scoped 包返 403，staticfile 没收这个包，镜像这条实测能出 woff2。
+     CSS 内含 239 段 @font-face + unicode-range，浏览器只下当前歌词用到的那几片。 -->
+<link rel="stylesheet" href="https://jsd.onmicrosoft.cn/npm/@automann/maple-mono-cn@7.9.2/dist/regular.css">
 <link rel="preload" as="image" href="https://t.alcy.cc/tx" fetchpriority="high">
 <style>
 :root{
@@ -53,6 +60,10 @@
   --e3:0 4px 8px 3px rgba(0,0,0,.14),0 1px 3px rgba(0,0,0,.28);
   --sans:"Google Sans",Roboto,"HarmonyOS Sans SC","MiSans","Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;
   --mono:"Roboto Mono",ui-monospace,Consolas,Menlo,"Noto Sans Mono CJK SC",monospace;
+  /* 歌词栏：Maple Mono CN 混排等宽，中英文都是 2:1，不会出现「中文一格、英文半格」的错位。
+     字体由 head 里的 @font-face 提供（jsDelivr 国内镜像），这里只管选用。
+     末尾的 var(--sans) 是兜底：webfont 没下完 / 被拦截时退回原来的无衬线，不会白屏。 */
+  --lrc-font:"Maple Mono CN",var(--sans);
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* hidden 属性必须压得住任何 display。
@@ -298,7 +309,8 @@ body.paused .cov.live::after{animation-play-state:paused}
 .p-now .t .tt{flex:0 1 auto;min-width:0;font-size:13.5px;font-weight:500;color:var(--di);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .p-now .t .by{flex:0 1 auto;min-width:0;font-size:11.5px;font-weight:400;color:#7f828a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* 主页播放组件里的歌词行：跟着播放走的那一句 */
-.p-now .ml{display:flex;align-items:center;gap:6px;min-width:0;height:17px;font-size:11.5px;color:#aeb1b7;transition:color .2s}
+/* 主界面这条同步歌词跟歌词页共用一套字体，跟 .l-line 对齐 */
+.p-now .ml{display:flex;align-items:center;gap:6px;min-width:0;height:17px;font-size:11.5px;color:#aeb1b7;transition:color .2s;font-family:var(--lrc-font)}
 .p-now .ml .c{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .p-now .ml .tr{flex:0 1 auto;min-width:0;color:#7f828a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52%}
 .p-now .ml .c.in,.p-now .ml .tr.in{animation:miniIn .4s cubic-bezier(.2,.8,.2,1) both}
@@ -444,6 +456,8 @@ body.has-acct main.wrap{--player-ex:48px}
 .l-line{
   padding:8px 6px;font-size:17px;line-height:1.7;color:#4a4d55;cursor:pointer;
   text-align:center;word-break:break-word;
+  /* 歌词栏套 Maple Mono CN：原文 / 翻译 / 主界面那条同步显示的歌词都走这一个变量 */
+  font-family:var(--lrc-font);
   /* 只过渡 color / opacity：这两项不触发布局重排。
      （原来还过渡 font-size / letter-spacing / font-weight —— 那三项每一句都要
       重排整列歌词，是切句时那一顿卡顿的主因。） */
@@ -2645,10 +2659,12 @@ function mineCount() { return HIST.length + PLS.length; }
 function renderMine() {
   var sec = $("mineCard");
   if (!sec) return;
-  /* 收听记录只在 OAUTH_ON=true 时露出来。整块（标签 + 面板 + 卡片）一起藏，
+  /* 收听记录只在「开关开着 + 已登录」时露出来。整块（标签 + 面板 + 卡片）一起藏，
      不是只清空内容 —— 留个点不动的空标签更让人以为坏了。
-     歌单不受影响：导入歌单是自己贴 ID，跟登录无关。 */
-  var histOn = !!CFG.oauth;
+     歌单不受影响：导入歌单是自己贴 ID，跟登录无关。
+     门控放在 renderMine 里而不是只在登录那一瞬处理：登录/退出都走 applyOAuth()
+     → renderMine()，所以登录后立刻显示、退出后立刻隐藏，两边对称。 */
+  var histOn = !!(CFG.oauth && currentUser() && currentUser().name);
   var tabH = $("tabHist"), paneH = $("paneHist");
   if (tabH) tabH.hidden = !histOn;
   if (paneH) paneH.hidden = !histOn;
@@ -2854,6 +2870,9 @@ function applyOAuth() {
   var u = (CFG.oauth && currentUser()) ? currentUser() : null;
   renderUser(u);
   renderAcctBar();
+  /* 收听记录跟着登录态走：登录后立刻露出来，退出后立刻收回去。
+     renderMine() 自带 histOn 门控，这里不用再判登录态。 */
+  renderMine();
   if (u) restoreProgress();
   else if (CFG.loaded && !CFG.oauth) clearUser();
 }
