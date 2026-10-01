@@ -445,10 +445,12 @@ main.wrap{padding-bottom:calc(var(--player-h) + 32px)}
   transition:color .26s linear,opacity .26s linear;
 }
 .l-line .tr{margin-top:2px}
-/* 正在播放：换成主色 + 一点发光，字号放大交给下面 .o / .tr 的 scale。 */
+/* 正在播放：粉字 + 一点发光，字号放大交给下面 .o / .tr 的 scale。
+   配色固定，不跟封面主色走 —— 详见下面那段「歌词配色固定」的注释。
+   未播放保持 .l-line 上的灰色。 */
 .l-line.acti{
-  color:var(--lrc-acc,#fff);
-  text-shadow:0 0 30px var(--lrc-acc-glow,rgba(255,255,255,.2));
+  color:#ffb7c5;
+  text-shadow:0 0 30px rgba(255,183,197,.28);
 }
 /* 当前句「略大」，但用 scale 而不是 font-size。
    font-size 一变，这行的行高跟着变 → 整列歌词重排、滚动定位肉眼可见地抖一下；
@@ -461,18 +463,6 @@ main.wrap{padding-bottom:calc(var(--player-h) + 32px)}
    只动 opacity / transform，两者都在合成器上，不触发 layout。 */
 .l-line.acti .o,.l-line.acti .tr{animation:lrcIn .26s cubic-bezier(.2,.8,.2,1) both}
 @keyframes lrcIn{from{opacity:.2;transform:scale(1.02) translate3d(0,5px,0)}to{opacity:1;transform:scale(1.12)}}
-/* 封面偏暗（art-dark，由取色时的亮度判定挂上）：未播放与正在播放的颜色对调。
-   默认是「其余歌词灰、当前句主色高亮」；暗封面下反过来 —— 其余歌词提亮成
-   米白，当前句压成深色并只留一层暗晕，靠明暗差把当前句托出来。
-   当前句的发光也换掉：高亮色本来配的是彩色辉光，暗色字配彩辉光会显脏。 */
-html.art-dark .l-line{color:#e9e7e2}
-html.art-dark .l-line:hover{color:#fff}
-html.art-dark .l-line.acti{
-  color:var(--lrc-acc-dark,#2a2c33);
-  text-shadow:0 1px 10px rgba(0,0,0,.34);
-}
-/* 暗封面且主色本身也暗时，当前句压暗会看不清 —— 用主色的提亮版兜底。
-   --lrc-acc-dark 由 applyAccent 按实际主色算好，不合格时才回落到上面的深灰。 */
 .lyr .lyr-foot{position:relative;z-index:2;padding:0 40px 22px}
 .lyr .lyr-prog{height:3px;margin-bottom:12px}
 .lyr .lyr-bar{display:flex;align-items:center;gap:16px}
@@ -916,7 +906,7 @@ html.art-dark .l-line.acti{
 /* 当前句放大走 .acti .o / .tr 上的 transform:scale（见主样式段），
    这层只管颜色 —— 深色面上补一点发光。当前句的字号不要再写成 font-size，
    那会让整列歌词每句重排一次。 */
-.l-line.acti{color:var(--lrc-acc,#fff)}
+.l-line.acti{color:#ffb7c5}
 .lyr .lyr-prog{height:4px;border-radius:var(--r-full);background:#3a3a44}
 .lyr .lyr-prog .fill{background:var(--primary-2)}
 .lyr .lyr-prog .knob{display:none}
@@ -1791,6 +1781,19 @@ function setMini(mode, text, tr) {
 }
 function setNow(text, hint) { setMini(hint ? "hint" : "idle", text || "", ""); }
 function setArtist(name) { $("nowBy").textContent = name ? "· " + name : ""; }
+/* 换歌时把所有「歌名 / 作者」落点一次写全。
+   原来这些散在 playItem（只写播放条）和 openLyrics（只写歌词页顶栏）两处，
+   于是歌词页开着的时候切歌，顶栏还停着上一首的歌名 —— 歌词已经是新的，
+   标题却是旧的，看着像加载错了。抽出来让 playItem 每次换歌都调用，
+   歌词页开不开都同步。 */
+function setSongInfo(it) {
+  var song = it || {};
+  var title = song.title || "未在播放";
+  $("nowTitle").textContent = title;
+  setArtist(song.author);
+  $("lyrTitle").textContent = title;
+  $("lyrAuthor").textContent = song.author || "";
+}
 /* 歌词行跟随播放：每一句变化时换一次文本，并重放一次上浮入场。
    这里不再给 hint 让路 —— 提示已不在屏上显示，若仍让 hint 短路，
    一次「正在解析播放地址」就会把歌词卡住不再跟随。 */
@@ -1858,8 +1861,7 @@ function resetPlaybackState() {
   if (audio) {
     try { audio.currentTime = 0; } catch (e) {}
   }
-  $("nowTitle").textContent = "未在播放";
-  setArtist("");
+  setSongInfo(null);
   setNow("", false);
   var cov = DEFAULT_ART;
   $("coverImg").src = cov;
@@ -1916,8 +1918,9 @@ function playItem(i) {
   S.cands = [{ s: it.server || S.server, id: it.id, r: 0, au: it.au || "", sr: "" }];
   S.ci = 0;
   S.miniIdx = -1;
-  $("nowTitle").textContent = it.title || "未在播放";
-  setArtist(it.author);
+  /* 先落歌名再解析地址：换歌是用户最在意的一步，标题必须立刻跟上，
+     播放条和歌词页顶栏两处一起写（歌词页开着也不能留着上一首的歌名）。 */
+  setSongInfo(it);
   setNow("正在解析播放地址…", false);
   setSrcTag(it.server || S.server);
   applyCover();
@@ -1938,110 +1941,8 @@ function applyCover() {
   $("coverImg").src = cov;
   $("lyrBg").style.backgroundImage = "url('" + cov + "')";
   imgFallback($("coverImg"));
-  pickCoverColor(cov);
 }
 
-/* ---------- 从封面取主要色：歌词高亮、进度条、光晕都用它 ----------
-   封面是跨域图，读像素必须带 crossOrigin="anonymous"（CDN 已回 ACAO:*）；
-   万一某家不给 CORS 或解码失败，就安静退回默认白，不影响播放。 */
-var ACC_KEY = "mus_acc";
-var ACC_CACHE = {};
-function applyAccent(rgb) {
-  if (!rgb) return;
-  var c = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
-  var body = document.body;
-  var set = function (el, k, v) { if (el) el.style.setProperty(k, v); };
-  [document.documentElement, body, $("lyrView")].forEach(function (el) { set(el, "--lrc-acc", c); });
-  set(document.documentElement, "--acc-from-art", c);
-  /* 浅色底上的歌词要压暗一点，否则主色很亮时在暗底上反而发灰 */
-  var lum = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
-  if (lum > 0.62) {
-    var deep = [Math.round(rgb[0] * 0.72), Math.round(rgb[1] * 0.72), Math.round(rgb[2] * 0.72)];
-    set(document.documentElement, "--lrc-acc", "rgb(" + deep[0] + "," + deep[1] + "," + deep[2] + ")");
-  }
-  /* 封面偏暗时，主色也跟着暗 —— 在歌词页这种深底上，当前句高亮和其余歌词
-     就都糊在一起，「哪句在唱」读不出来。这时把两者对调：未播放的歌词用亮色
-     （安静但清楚），当前句反过来压暗并去掉发光，让它在整体明亮的歌词里
-     成为唯一一处暗的落点。判定用同一个 lum，阈值比上面那条 0.62 更低，
-     只在真的暗时才换。 */
-  var dark = lum < 0.4;
-  document.documentElement.classList.toggle("art-dark", dark);
-  set(document.documentElement, "--lrc-acc-glow",
-      dark ? "rgba(0,0,0,.34)" : "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",.28)");
-  /* 对调后当前句要压暗，但主色本身可能已经很暗（暗封面的主色常常如此），
-     再压就糊成一片。所以取主色往亮的方向提，保证当前句一定比其余歌词暗、
-     且仍然读得出来。低于可读阈值时才回落到中性深灰。 */
-  var dl = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
-  if (dark && dl < 0.34) {
-    var lift = Math.min(0.4, 0.34 / (dl || 0.02));
-    var a = function (v) { return Math.max(0, Math.min(255, Math.round(v * lift + 22))); };
-    set(document.documentElement, "--lrc-acc-dark", "rgb(" + a(rgb[0]) + "," + a(rgb[1]) + "," + a(rgb[2]) + ")");
-  } else {
-    set(document.documentElement, "--lrc-acc-dark", "rgb(42,44,51)");
-  }
-  set(document.documentElement, "--lrc-acc-soft", "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",.72)");
-  set(document.documentElement, "--lrc-acc-glow", "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",.28)");
-  try { localStorage.setItem(ACC_KEY, c); } catch (e) {}
-}
-function pickCoverColor(url) {
-  if (!url) return;
-  var hit = ACC_CACHE[url];
-  if (hit) { applyAccent(hit); return; }
-  var img = new Image();
-  img.crossOrigin = "anonymous";
-  img.onload = function () {
-    try {
-      var w = img.naturalWidth, h = img.naturalHeight;
-      if (!w || !h) return;
-      /* 缩到 24×24 再取像素：够代表主色，又不用下载整张大图 */
-      var s = 24, cv = document.createElement("canvas");
-      cv.width = s; cv.height = s;
-      var cx = cv.getContext("2d");
-      if (!cx) return;
-      cx.drawImage(img, 0, 0, s, s);
-      var d = cx.getImageData(0, 0, s, s).data;
-      /* 按「出现次数 × 饱和度 × 亮度」投票，滤掉黑白和太暗的像素 */
-      var bins = {}, best = null, bestScore = 0;
-      for (var i = 0; i < d.length; i += 4) {
-        if (d[i + 3] < 128) continue;
-        var R = d[i], G = d[i + 1], B = d[i + 2];
-        var lgt = Math.max(R, G, B) / 255;
-        if (lgt < 0.14 || lgt > 0.97) continue;
-        var key = (R >> 4) + "," + (G >> 4) + "," + (B >> 4);
-        var b = bins[key] || (bins[key] = { n: 0, r: 0, g: 0, b: 0 });
-        b.n++; b.r += R; b.g += G; b.b += B;
-      }
-      for (var k in bins) {
-        if (!Object.prototype.hasOwnProperty.call(bins, k)) continue;
-        var v = bins[k];
-        var ar = v.r / v.n, ag = v.g / v.n, ab = v.b / v.n;
-        var amx = Math.max(ar, ag, ab), amn = Math.min(ar, ag, ab);
-        var asat = (amx - amn) / (amx || 1);
-        var score = v.n * (0.35 + asat * 1.6) * (0.55 + (amx / 255) * 0.6);
-        if (score > bestScore) {
-          bestScore = score;
-          best = [Math.round(ar), Math.round(ag), Math.round(ab)];
-        }
-      }
-      if (best) { ACC_CACHE[url] = best; applyAccent(best); }
-    } catch (e) { /* 跨域没给 CORS：getImageData 会抛，忽略即可 */ }
-  };
-  img.onerror = function () {};
-  img.src = url;
-}
-/* 只缓存了 --lrc-acc 这一个颜色，所以刷新后 art-dark / --lrc-acc-dark
-   要跟着一起重建，否则深色封面的歌在刷新后会退回「灰底高亮」那套，
-   直到下一首歌取色才恢复。缓存里存亮度，不存 class 名。 */
-function restoreAccent() {
-  try {
-    var c = localStorage.getItem(ACC_KEY);
-    if (!c) return;
-    var m = c.match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
-    if (!m) return;
-    document.documentElement.style.setProperty("--lrc-acc", c);
-    applyAccent([+m[1], +m[2], +m[3]]);
-  } catch (e) {}
-}
 /* 载入当前候选音源：先解析出可播地址，再交给 <audio>。
    解析和播放分开，失败时能分清是「地址没拿到」还是「地址拿到了却放不出声」。 */
 function doLoad(c, delay) {
@@ -2567,8 +2468,7 @@ function openLyrics() {
   clearT("lyrClose");
   m.classList.remove("out");
   m.classList.add("on");
-  $("lyrTitle").textContent = it.title || "未在播放";
-  $("lyrAuthor").textContent = it.author || "";
+  setSongInfo(it);
   /* 歌词区刚才还是 display:none，量不到高度。display 一翻过来同帧就能读到，
      所以在这里重量 + 定位 —— 原来那个 setTimeout(80) 会让歌词先落在顶部再跳到中间。 */
   if (lrcStale || !lrcRows) measureLrc();
@@ -3123,8 +3023,7 @@ function restoreProgress() {
   highlightLists();
   renderMine();
   /* 把当前这一首显示出来：歌名、封面、歌词都先到位，audio.src 仍然空着 */
-  $("nowTitle").textContent = it.title || "未在播放";
-  setArtist(it.author);
+  setSongInfo(it);
   setNow("上次听到 " + fmt(S.resumeT) + "，点播放继续", false);
   applyCover();
   loadLrc(it.id, it.server || S.server);
@@ -3323,7 +3222,6 @@ bindSeek($("prog"), "progFill", ".knob");
 bindSeek($("lyrProg"), "lyrProgFill", ".knob");
 
 imgFallback($("coverImg"));
-restoreAccent();
 audio.volume = .85;
 setMode(S.mode);
 S.server = savedServer();
