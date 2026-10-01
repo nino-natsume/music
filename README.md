@@ -42,11 +42,7 @@ npx wrangler deploy
 | `OAUTH_ON` | Text | / | **【注意】此变量仅本人开启时有效，后台链接 Oauth 登录授权平台** <br>状态为 OFF 时：无登录按钮、不支持 OAuth 回调、不存播放进度、不显示账号列表<br>「我的音乐」功能不受影响 |
 | `MUSIC_TOKEN` | Secret | / | 上游 API 鉴权 token（HMAC-SHA1）。留空则匿名访问 |
 
-改完**不用重新 deploy**，前端每次打开都问 Worker 要一次 `/config`。
 
-> **为什么从 Dashboard 设的变量不会被 deploy 清掉**：`wrangler.toml` 里写了 `keep_vars = true`。
-> wrangler 默认把配置文件当作非加密变量的唯一真相源，每次 deploy 先删掉 Worker 上所有 plain-text 变量再写回配置里有的那几个 —— 只在 Dashboard 设的 `OAUTH_ON` 会被抹掉（症状：后台明明开着，部署完登录按钮又没了）。加上 `keep_vars` 后，wrangler 只覆盖配置文件里出现的变量名，其余原样留着。
-> 代价：从 `wrangler.toml` 删掉一个变量名不会顺手删掉 Dashboard 上的那个，要删得自己去后台。
 
 ## 文件 & 后端路由
 
