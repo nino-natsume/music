@@ -10,6 +10,12 @@ name = "music-player"
 main = "worker.js"
 compatibility_date = "2025-01-01"
 
+# Dashboard 里设的变量在 deploy 时保留。
+# wrangler 默认把本文件当非加密变量的唯一真相源：每次 deploy 先删掉 Worker 上所有
+# plain-text 变量再写回这里有的 —— 只在 Dashboard 设的 OAUTH_ON 会被抹掉。
+# 加上这行后只覆盖本文件出现的变量名；代价是从本文件删名不会连带删掉 Dashboard 的。
+keep_vars = true
+
 # 可选：绑定自定义域名（把 music.107211.xyz 解析到本 Worker）
 # routes = [
 #   { pattern = "music.107211.xyz/*", zone_name = "107211.xyz" }
@@ -34,10 +40,8 @@ compatibility_date = "2025-01-01"
 #   → Add variable → Name: OAUTH_ON  Value: "true"  Type: Text
 #
 # 为什么不放 [vars]：
-#   1. 一旦这里写了值，wrangler deploy 会把它当成部署的一部分推上去，
-#      Dashboard 里改的设置容易被这行盖掉，两个地方各说各话很难查；
-#   2. 谁部署谁决定开关，配置跟着环境走，不跟着 git 走 ——
-#      同一个仓库 fork 出好几份部署时，各站点互不影响；
+#   1. Dashboard 里的设置容易被配置文件盖掉，两个地方各说各话很难查；
+#   2. 配置跟着环境走，不跟着 git 走 —— 同一仓库 fork 出多份部署时互不影响；
 #   3. 变量名和说明不写进版本库，改名/下线开关不用发 commit。
 #
 # 改完不用重新 deploy，直接生效：前端每次打开页面都会问一次 /config。

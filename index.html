@@ -720,12 +720,42 @@ body.has-acct main.wrap{--player-ex:48px}
   .res-hd{padding:11px 12px}
   .hero{padding:18px 0 12px}
 }
+/* 矮屏横屏（手机横过来、分屏、桌面小窗）：纵向空间是稀缺资源。
+   顶栏和底栏各占 53+79=132px，320 高的屏上歌词只剩 186px。
+   所以这里把两者压扁：顶栏收成一行小字，底栏改成进度条和控件同一行，
+   把纵向空间还给歌词。 */
 @media (max-height:520px) and (orientation:landscape){
   :root{--player-h:74px}
   .lyr-main{align-items:center;padding:0 24px}
   .lyr-lrc{height:100%}
   .lyr .lyr-foot{padding:0 24px 12px}
   .cov{width:44px;height:44px}
+}
+@media (max-height:440px) and (orientation:landscape){
+  /* 顶栏压扁：标题和作者并成一行 */
+  .lyr .lyr-top{padding:6px 16px 2px;gap:8px}
+  .lyr .lyr-top b{font-size:13px}
+  .lyr .lyr-top span{font-size:11px;margin-top:0}
+  .lyr .lyr-top .tt{display:flex;align-items:baseline;gap:8px;min-width:0}
+  .lyr .lyr-top .tt b{flex:0 1 auto;min-width:0}
+  .lyr .lyr-foot{padding:0 16px 8px}
+  .lyr .lyr-prog{margin-bottom:6px}
+  .lyr .lyr-time{font-size:11px}
+  .lyr .lyr-x{width:40px;height:40px;margin:-4px -4px -4px 0}
+  .lyr .lyr-bar{gap:10px}
+}
+/* 触摸目标：手指比鼠标粗，Apple 建议 44px、Material 48dp。
+   不放大按钮本身（视觉会变粗），改成给点击区加透明外扩 ——
+   命中区域变大，看起来的尺寸一点不变。 */
+@media (pointer:coarse){
+  .lyr .lyr-x,.srcpop .sp-x,.queue .qh .x,.mtabs .tab,
+  .lyr .lyr-tools .ic,.lyr .lyr-ctrl .ic{
+    min-width:40px;min-height:40px;
+    display:inline-flex;align-items:center;justify-content:center;position:relative;
+  }
+  .lyr .lyr-x::before{content:"";position:absolute;inset:-6px}
+  .srcpop .sp-x::before{content:"";position:absolute;inset:-10px}
+  .queue .qh .x::before{content:"";position:absolute;inset:-8px}
 }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important;scroll-behavior:auto !important}
@@ -2343,9 +2373,8 @@ function measureLrc() {
   lrcBoxH = lrcBox.clientHeight || 0;
   if (!lrcBoxH) { lrcStale = true; return; }
   lrcStale = false;
-  /* 上下留白各半个歌词区高：整列因此比容器长出一屏，
-     于是任何一行都能被送到正中线 —— 头一句和末一句也不例外。
-     留白用 ::before/::after 实现，不占 children，所以下面只量真实的歌词行。 */
+  /* 上下留白各半个歌词区高：整列因此比容器长出一屏，于是任何一行都能被送到
+     正中线 —— 头一句、末一句也不例外。留白用伪元素，不占 children。 */
   lrcTr.style.setProperty("--lrc-pad", Math.round(lrcBoxH / 2) + "px");
   var kids = lrcTr.children, arr = [];
   for (var i = 0; i < kids.length; i++) {
@@ -2361,11 +2390,9 @@ function applyLrcIdx(idx) {
   S.actIdx = idx;
   if (idx >= 0 && idx < kids.length) kids[idx].classList.add("acti");
 }
-/* 把当前行送到正中线。全部走缓存，不再读任何会触发重排的属性。
-   measureLrc() 给整列加了上下各半屏的留白，所以整列总是比容器长出一屏，
-   首行和末行也够得到正中线 —— 位移不再需要按容器边界钳制，
-   头一句、末一句不会被顶在顶部或压在底部。
-   只在整列比容器短（歌词极少）时才把整列居中。 */
+/* 把当前行送到正中线。全部走缓存，不再读会触发重排的属性。
+   measureLrc() 给整列加了上下各半屏留白，整列因此比容器长一屏，首末行也够得到
+   正中线 —— 位移不必按容器边界钳制。只在歌词极少、整列比容器短时才整体居中。 */
 function scrollLrc() {
   if (!lrcTr) return;
   if (!lrcRows || lrcStale) measureLrc();
@@ -2583,10 +2610,17 @@ function mineCount() { return HIST.length + PLS.length; }
 function renderMine() {
   var sec = $("mineCard");
   if (!sec) return;
+  /* 收听记录只在 OAUTH_ON=true 时露出来。整块（标签 + 面板 + 卡片）一起藏，
+     不是只清空内容 —— 留个点不动的空标签更让人以为坏了。
+     歌单不受影响：导入歌单是自己贴 ID，跟登录无关。 */
+  var histOn = !!CFG.oauth;
+  var tabH = $("tabHist"), paneH = $("paneHist");
+  if (tabH) tabH.hidden = !histOn;
+  if (paneH) paneH.hidden = !histOn;
   var box = $("histCards");
   box.innerHTML = "";
   var curKey = (S.idx >= 0 && S.list[S.idx]) ? songKey(S.list[S.idx]) : "";
-  for (var i = 0; i < HIST.length; i++) {
+  if (histOn) for (var i = 0; i < HIST.length; i++) {
     (function (h, idx) {
       var k = songKey(h);
       var b = document.createElement("button");
@@ -2606,7 +2640,7 @@ function renderMine() {
       box.appendChild(b);
     })(HIST[i], i);
   }
-  $("histEmpty").hidden = HIST.length > 0;
+  $("histEmpty").hidden = !histOn || HIST.length > 0;
 
   var pbox = $("plCards");
   pbox.innerHTML = "";
@@ -2647,6 +2681,8 @@ function histList() {
   return out;
 }
 function switchTab(name) {
+  /* OAuth 关着时收听记录那个标签根本不存在，落到它上面就改显示歌单 */
+  if (name === "paneHist" && !CFG.oauth) name = "panePls";
   var tabs = $("mineCard").querySelectorAll(".tab");
   for (var i = 0; i < tabs.length; i++) {
     var on = tabs[i].getAttribute("data-pane") === name;
@@ -2973,7 +3009,9 @@ function applySeekAt() {
    ========================================================= */
 function acctLists() {
   var out = [];
-  if (HIST.length) out.push({ k: "hist", name: "收听记录", n: HIST.length });
+  /* 收听记录只在 OAUTH_ON=true 时进清单。整条账号栏已被 renderAcctBar 门控，
+     这里再挡一道 —— 函数语义完整，以后多个调用点也不会漏出去。 */
+  if (CFG.oauth && HIST.length) out.push({ k: "hist", name: "收听记录", n: HIST.length });
   for (var i = 0; i < PLS.length; i++) {
     var p = PLS[i];
     out.push({ k: "pl:" + p.id, name: "歌单 " + p.id, n: p.n || 0 });
