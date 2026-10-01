@@ -471,6 +471,18 @@ main.wrap{padding-bottom:calc(var(--player-h) + 32px)}
    只动 opacity / transform，两者都在合成器上，不触发 layout。 */
 .l-line.acti .o,.l-line.acti .tr{animation:lrcIn .26s cubic-bezier(.2,.8,.2,1) both}
 @keyframes lrcIn{from{opacity:.2;transform:scale(1.02) translate3d(0,5px,0)}to{opacity:1;transform:scale(1.12)}}
+/* 封面偏暗（art-dark，由取色时的亮度判定挂上）：未播放与正在播放的颜色对调。
+   默认是「其余歌词灰、当前句主色高亮」；暗封面下反过来 —— 其余歌词提亮成
+   米白，当前句压成深色并只留一层暗晕，靠明暗差把当前句托出来。
+   当前句的发光也换掉：高亮色本来配的是彩色辉光，暗色字配彩辉光会显脏。 */
+html.art-dark .l-line{color:#e9e7e2}
+html.art-dark .l-line:hover{color:#fff}
+html.art-dark .l-line.acti{
+  color:var(--lrc-acc-dark,#2a2c33);
+  text-shadow:0 1px 10px rgba(0,0,0,.34);
+}
+/* 暗封面且主色本身也暗时，当前句压暗会看不清 —— 用主色的提亮版兜底。
+   --lrc-acc-dark 由 applyAccent 按实际主色算好，不合格时才回落到上面的深灰。 */
 .lyr .lyr-foot{position:relative;z-index:2;padding:0 40px 22px}
 .lyr .lyr-prog{height:3px;margin-bottom:12px}
 .lyr .lyr-bar{display:flex;align-items:center;gap:16px}
@@ -994,6 +1006,7 @@ main.wrap{padding-bottom:calc(var(--player-h) + 32px)}
 .plcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
 .plcard{position:relative;display:block;width:100%;text-align:left;border-radius:var(--r-md);overflow:hidden;transition:background .15s}
 .plcard:hover{background:rgba(11,87,208,.08)}
+.plcard:focus-visible{outline:2px solid var(--primary-2);outline-offset:2px;border-radius:var(--r-md)}
 .plcard .pl-cov{position:relative;display:block;width:100%;aspect-ratio:1/1;border-radius:var(--r-sm);overflow:hidden;background:var(--surface-3)}
 .plcard .pl-cov img{width:100%;height:100%;object-fit:cover}
 .plcard .pl-cov .pl-n{
@@ -1956,6 +1969,26 @@ function applyAccent(rgb) {
     var deep = [Math.round(rgb[0] * 0.72), Math.round(rgb[1] * 0.72), Math.round(rgb[2] * 0.72)];
     set(document.documentElement, "--lrc-acc", "rgb(" + deep[0] + "," + deep[1] + "," + deep[2] + ")");
   }
+  /* 封面偏暗时，主色也跟着暗 —— 在歌词页这种深底上，当前句高亮和其余歌词
+     就都糊在一起，「哪句在唱」读不出来。这时把两者对调：未播放的歌词用亮色
+     （安静但清楚），当前句反过来压暗并去掉发光，让它在整体明亮的歌词里
+     成为唯一一处暗的落点。判定用同一个 lum，阈值比上面那条 0.62 更低，
+     只在真的暗时才换。 */
+  var dark = lum < 0.4;
+  document.documentElement.classList.toggle("art-dark", dark);
+  set(document.documentElement, "--lrc-acc-glow",
+      dark ? "rgba(0,0,0,.34)" : "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",.28)");
+  /* 对调后当前句要压暗，但主色本身可能已经很暗（暗封面的主色常常如此），
+     再压就糊成一片。所以取主色往亮的方向提，保证当前句一定比其余歌词暗、
+     且仍然读得出来。低于可读阈值时才回落到中性深灰。 */
+  var dl = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
+  if (dark && dl < 0.34) {
+    var lift = Math.min(0.4, 0.34 / (dl || 0.02));
+    var a = function (v) { return Math.max(0, Math.min(255, Math.round(v * lift + 22))); };
+    set(document.documentElement, "--lrc-acc-dark", "rgb(" + a(rgb[0]) + "," + a(rgb[1]) + "," + a(rgb[2]) + ")");
+  } else {
+    set(document.documentElement, "--lrc-acc-dark", "rgb(42,44,51)");
+  }
   set(document.documentElement, "--lrc-acc-soft", "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",.72)");
   set(document.documentElement, "--lrc-acc-glow", "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",.28)");
   try { localStorage.setItem(ACC_KEY, c); } catch (e) {}
@@ -2006,10 +2039,17 @@ function pickCoverColor(url) {
   img.onerror = function () {};
   img.src = url;
 }
+/* 只缓存了 --lrc-acc 这一个颜色，所以刷新后 art-dark / --lrc-acc-dark
+   要跟着一起重建，否则深色封面的歌在刷新后会退回「灰底高亮」那套，
+   直到下一首歌取色才恢复。缓存里存亮度，不存 class 名。 */
 function restoreAccent() {
   try {
     var c = localStorage.getItem(ACC_KEY);
-    if (c) document.documentElement.style.setProperty("--lrc-acc", c);
+    if (!c) return;
+    var m = c.match(/(\\d+)\\s*,\\s*(\\d+)\\s*,\\s*(\\d+)/);
+    if (!m) return;
+    document.documentElement.style.setProperty("--lrc-acc", c);
+    applyAccent([+m[1], +m[2], +m[3]]);
   } catch (e) {}
 }
 /* 载入当前候选音源：先解析出可播地址，再交给 <audio>。
@@ -2706,10 +2746,26 @@ function renderMine() {
       x2.className = "pl-x";
       x2.type = "button";
       x2.title = "删掉这个歌单";
-      x2.onclick = function (e) { e.stopPropagation(); dropPlaylist(p.id); };
+      x2.onclick = function (e) { e.stopPropagation(); dropPlaylist(p.id); forgetPlaylist(p.id); };
       c.appendChild(x2);
-      /* 点封面：把整张歌单拉下来直接进播放队列 */
-      c.querySelector(".pl-cov").onclick = function () { openPlaylist(p); };
+      /* 单击整张卡片即播，不用非得点准封面那块小方块。
+         事件挂在卡片上而不是 .pl-cov 上，所以封面外的标题行、副标题行、
+         卡片留白都算点击区。删除按钮上面已经 stopPropagation，不会误触。
+
+         卡片本身是个 div，onclick 不给键盘焦点，所以补上 role / tabindex
+         和 Enter / 空格处理 —— 封面那颗 button 是能 Tab 到的，但焦点落上去
+         再按 Enter 会因为冒泡重复触发，这里把按键拦在卡片这一层处理并
+         preventDefault 掉，不让它同时冒到内层 button 上。 */
+      c.onclick = function () { openPlaylist(p); };
+      c.onkeydown = function (e) {
+        if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+        e.preventDefault();
+        e.stopPropagation();
+        openPlaylist(p);
+      };
+      c.setAttribute("role", "button");
+      c.setAttribute("tabindex", "0");
+      c.title = "播放这张歌单";
       imgFallback(c.querySelector("img"));
       pbox.appendChild(c);
     })(PLS[j]);
@@ -2739,6 +2795,51 @@ function switchTab(name) {
   $("paneHist").hidden = name !== "paneHist";
   $("panePls").hidden = name !== "panePls";
 }
+/* ---------- 歌单读取：内存缓存 ----------
+   导入时已经把整张歌单拉下来过一次（为了拿首曲封面和首曲名），但那份数据
+   当时只用了个开头就丢掉了。于是「导入 → 点封面播放」之间又把同样的歌单
+   完整下了一遍，一次导入白白多等一个来回。
+
+   这里把拉下来的歌单按 server+id 留在内存里：导入那次顺手存下来，之后点
+   封面直接命中缓存，零网络。切音源（S.server 变了）自动落到另一条 key，
+   不会把 A 音源的解析结果错当成 B 音源的。
+
+   只存内存不落盘：歌单动辄几百上千首，写 localStorage 既占地方又要序列化，
+   收益还不明显 —— 缓存本来只为省掉「这一轮」重复请求。 */
+var PL_CACHE = {};
+var PL_INFLIGHT = {};
+function plKey(id, server) { return (server || "netease") + ":" + id; }
+/* 拿一张歌单的可播歌曲列表：命中缓存直接返回，否则拉一次并记下来。
+   同一个 id 的并发请求共用一个 promise，连点两下封面不会发出两个请求。 */
+function fetchPlaylist(id, server) {
+  var k = plKey(id, server);
+  if (PL_CACHE[k]) return Promise.resolve(PL_CACHE[k]);
+  if (PL_INFLIGHT[k]) return PL_INFLIGHT[k];
+  var p = apiJSON("playlist", id, server, 0, 1).then(function (data) {
+    var list = toList(data, server);
+    if (!list.length) throw new Error("empty");
+    PL_CACHE[k] = list;
+    return list;
+  });
+  PL_INFLIGHT[k] = p;
+  /* 成功或失败都要把 in-flight 摘掉，否则一次失败之后这个 id 就再也发不出
+     请求了（PL_INFLIGHT[k] 会一直指着一个 rejected promise）。 */
+  var done = function () { if (PL_INFLIGHT[k] === p) delete PL_INFLIGHT[k]; };
+  p.then(done, done);
+  return p;
+}
+/* 歌单删掉时把缓存一起扔了：id 被重新导入（内容可能已变）时不该再吃旧数据。
+   不传 server 就把各音源下这个 id 的份全清掉 —— 导入的记录里没存是哪次
+   拉取时的音源，而用户随时可能切过音源，只清当前音源那份会漏。 */
+function forgetPlaylist(id) {
+  var tail = ":" + id;
+  for (var k in PL_CACHE) {
+    if (Object.prototype.hasOwnProperty.call(PL_CACHE, k) && k.slice(-tail.length) === tail) delete PL_CACHE[k];
+  }
+  for (var j in PL_INFLIGHT) {
+    if (Object.prototype.hasOwnProperty.call(PL_INFLIGHT, j) && j.slice(-tail.length) === tail) delete PL_INFLIGHT[j];
+  }
+}
 function importPlaylist() {
   var inp = $("plId");
   var btn = $("btnPlAdd");
@@ -2747,30 +2848,31 @@ function importPlaylist() {
   btn.disabled = true;
   btn.textContent = "导入中…";
   statusModal("load", "正在拉取歌单", "id " + id);
-  apiJSON("playlist", id, S.server, 0, 1).then(function (data) {
+  fetchPlaylist(id, S.server).then(function (list) {
     btn.disabled = false;
     btn.textContent = "导入";
     inp.value = "";
-    var list = toList(data, S.server);
-    if (!list.length) { statusModal("fail", "歌单是空的", "没解析出可播的歌曲"); return; }
     var first = list[0] || {};
+    /* 这一行就是让后面「单击即播」变快的地方：歌单列表顺手进了缓存，
+       用户点封面时不用再下一遍。 */
     addPlaylist(id, { n: list.length, pic: first.pic || "", first: first.title || "" });
-    statusModal("ok", "歌单已导入", list.length + " 首");
+    statusModal("ok", "歌单已导入", list.length + " 首，点封面直接播");
     switchTab("panePls");
   }).catch(function () {
     btn.disabled = false;
     btn.textContent = "导入";
+    forgetPlaylist(id);
     statusModal("fail", "歌单拉取失败", "确认这个歌单是公开的");
   });
 }
 function openPlaylist(p) {
   statusModal("load", "正在拉取歌单", "歌单 " + p.id);
-  apiJSON("playlist", p.id, S.server, 0, 1).then(function (data) {
-    var list = toList(data, S.server);
-    if (!list.length) { statusModal("fail", "歌单是空的", "歌单 " + p.id); return; }
+  fetchPlaylist(p.id, S.server).then(function (list) {
     setQueue(list, 0);
     statusModal("ok", "已加入播放", list.length + " 首");
   }).catch(function () {
+    /* 缓存里那份可能是旧的：让下次重试能重新拉，而不是一直吃这份 */
+    forgetPlaylist(p.id);
     statusModal("fail", "歌单拉取失败", "歌单 " + p.id);
   });
 }
