@@ -62,3 +62,6 @@ npx wrangler deploy
 | `/sources` | 音源可用性检测，结果缓存 30 分钟 |
 | `/health` | 诊断接口能否解出地址，**不下载音频** |
 | `/config` | 回 `{ "oauth": true\|false }` |
+
+## License
+MIT
