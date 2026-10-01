@@ -130,25 +130,44 @@ a{color:var(--primary)}
 .btn .av img{width:100%;height:100%;object-fit:cover}
 .btn .nm{max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-/* ============ 搜索区 ============ */
-.hero{padding:38px 0 22px}
-.hero.searching{padding:22px 0 18px}
-.hero-t{overflow:hidden;transition:max-height .22s ease,opacity .18s ease,margin .22s ease;max-height:120px}
-.hero.searching .hero-t{max-height:0;opacity:0;margin:0}
-.hero h1{font-size:22px;font-weight:500;letter-spacing:0}
-/* 大标题下面那行副标题：只放真数据（当前音源 + 检测结果），不放营销话 */
-.hero-k{margin-top:4px;font-size:12.5px;color:var(--on-surface-2)}
+/* ============ 搜索区 ============
+   有关键词时搜索框「伸长」：宽到接近全幅、高度略增、圆角收窄，
+   同时 hero 的上下留白收紧 —— 视觉上把注意力让给搜索，而不是换一套布局。
+   过渡的是 width / height / padding / max-width，都不触发布局重排以外的重绘，
+   而这里是一次性的单元素动画，不在每帧循环里，代价可以忽略。 */
+.hero{padding:26px 0 18px}
+.hero.searching{padding:14px 0 12px}
 .search{
-  margin-top:18px;display:flex;align-items:center;gap:8px;
+  margin:0 auto;max-width:520px;
+  display:flex;align-items:center;gap:8px;
   height:44px;padding:0 6px 0 13px;background:var(--card);
   border:1px solid var(--line2);border-radius:var(--r);
-  transition:border-color .15s,box-shadow .15s;
+  transition:border-color .15s,box-shadow .15s,
+             max-width .42s cubic-bezier(.2,.9,.25,1),
+             height .42s cubic-bezier(.2,.9,.25,1),
+             border-radius .42s cubic-bezier(.2,.9,.25,1),
+             padding .42s cubic-bezier(.2,.9,.25,1),
+             box-shadow .42s cubic-bezier(.2,.9,.25,1);
 }
+/* 展开动画：从中间向两侧长开，而不是从左边拉开 —— 中心不变，输入框不会「跑」。 */
+.hero.searching .search{
+  max-width:100%;height:52px;padding:0 8px 0 18px;
+  border-radius:10px;
+  box-shadow:0 6px 22px rgba(26,27,29,.09);
+  animation:searchOpen .42s cubic-bezier(.2,.9,.25,1) both;
+}
+@keyframes searchOpen{
+  from{max-width:520px;height:44px;padding:0 6px 0 13px;border-radius:var(--r);
+       box-shadow:0 0 0 rgba(26,27,29,0)}
+  to{max-width:100%;height:52px;padding:0 8px 0 18px;border-radius:10px;
+      box-shadow:0 6px 22px rgba(26,27,29,.09)}
+}
+/* 清空关键词时收回：只过渡，不重播开场动画（动画只挂在 .searching 上，
+   那个类一撤就没了，所以收回是干净的 transition）。 */
 .search:focus-within{border-color:#9d998e;box-shadow:0 0 0 3px rgba(26,27,29,.05)}
 .search svg.mag{flex:none;width:16px;height:16px;color:var(--ink3)}
 .search:focus-within svg.mag{color:var(--ink2)}
 .search input{flex:1;min-width:0;height:100%;border:none;outline:none;background:none;font-size:14px}
-.search input::placeholder{color:#a9a69e}
 .search .go{
   flex:none;height:32px;padding:0 18px;border-radius:5px;
   background:var(--ink);color:#f6f5f2;font-size:13px;font-weight:500;
@@ -206,8 +225,9 @@ body.paused .songlist li.cur .im .eq i{animation-play-state:paused}
 .songlist li.cur .meta .t{color:var(--acc2);font-weight:500}
 .songlist .meta .s{margin-top:1px;font-size:12px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .songlist .empty{display:block;padding:38px 16px;text-align:center;font-size:13px;color:var(--ink3);cursor:default;animation:fadeIn .3s ease both}
+.songlist .empty svg{width:19px;height:19px;display:block;margin:0 auto;opacity:.45;transition:opacity .18s ease}
 .songlist .empty.retry{cursor:pointer;color:var(--acc2)}
-.songlist .empty.retry:hover{text-decoration:underline}
+.songlist .empty.retry:hover svg{opacity:1}
 .songlist .empty:hover{background:none}
 /* 搜索中的骨架屏：微光横扫，不跳数字 */
 .songlist li.sk{padding:11px 16px;gap:12px;cursor:default;animation:none;pointer-events:none}
@@ -334,7 +354,6 @@ body.paused .p-now .ml .eq i{animation-play-state:paused}
 }
 .p-acct .chip:hover{background:rgba(255,255,255,.14);color:var(--di)}
 .p-acct .chip .cc{font-size:11px;opacity:.7;font-variant-numeric:tabular-nums}
-.p-acct .pa-none{flex:none;font-size:11.5px;color:var(--di2);opacity:.75}
 /* 播放条多了一行账号清单，正文底部要多让出这段高度（--player-ex 由 JS 的
    has-acct 切换，两种情况都不写死数值） */
 main.wrap{--player-ex:0px;padding-bottom:calc(var(--player-h) + var(--player-ex) + 32px)}
@@ -442,17 +461,22 @@ body.has-acct main.wrap{--player-ex:48px}
   transition:color .26s linear,opacity .26s linear;
 }
 .l-line .tr{margin-top:2px}
-/* 正在播放：只换颜色，不放大。放大要靠 font-size 过渡，会带着整列反复重排，
-   而且字一变大这一行的行高也跟着变，滚动定位会肉眼可见地抖一下。 */
+/* 正在播放：换成主色 + 一点发光，字号放大交给下面 .o / .tr 的 scale。 */
 .l-line.acti{
   color:var(--lrc-acc,#fff);
   text-shadow:0 0 30px var(--lrc-acc-glow,rgba(255,255,255,.2));
 }
+/* 当前句「略大」，但用 scale 而不是 font-size。
+   font-size 一变，这行的行高跟着变 → 整列歌词重排、滚动定位肉眼可见地抖一下；
+   scale 只在合成器上做变换，行高恒定，定位永远对得上。
+   放大挂在 .o / .tr（文字本身）上而不是 .l-line 上：挂行上会把左右 padding
+   一起放大，歌词往两边溢出容器被裁掉。 */
+.l-line .o,.l-line .tr{transform:scale(1)}
+.l-line.acti .o,.l-line.acti .tr{transform:scale(1.12)}
 /* 切到当前句时重放入场动画，原文和翻译一起上浮。
    只动 opacity / transform，两者都在合成器上，不触发 layout。 */
 .l-line.acti .o,.l-line.acti .tr{animation:lrcIn .26s cubic-bezier(.2,.8,.2,1) both}
-@keyframes lrcIn{from{opacity:.2;transform:translate3d(0,5px,0)}to{opacity:1;transform:none}}
-.lrc-none{padding:40px 2px;font-size:13px;color:#6d7076;text-align:center}
+@keyframes lrcIn{from{opacity:.2;transform:scale(1.02) translate3d(0,5px,0)}to{opacity:1;transform:scale(1.12)}}
 .lyr .lyr-foot{position:relative;z-index:2;padding:0 40px 22px}
 .lyr .lyr-prog{height:3px;margin-bottom:12px}
 .lyr .lyr-bar{display:flex;align-items:center;gap:16px}
@@ -643,7 +667,6 @@ body.has-acct main.wrap{--player-ex:48px}
 @keyframes drop{from{opacity:0;transform:translateY(-100%)}to{opacity:1;transform:none}}
 @keyframes shimmer{from{background-position:130% 0}to{background-position:-30% 0}}
 .nav{animation:drop .45s cubic-bezier(.2,.8,.2,1) both}
-.hero h1{animation:rise .5s .06s cubic-bezier(.2,.8,.2,1) both}
 .search{animation:rise .5s .2s cubic-bezier(.2,.8,.2,1) both}
 .results{animation:rise .34s cubic-bezier(.2,.8,.2,1) both}
 .res-hd .all{transition:color .15s,transform .15s}
@@ -698,8 +721,7 @@ body.has-acct main.wrap{--player-ex:48px}
   .ic-next::after{right:11.8px}
   .songlist li{padding:9px 12px;gap:10px}
   .res-hd{padding:11px 12px}
-  .hero{padding:28px 0 18px}
-  .hero h1{font-size:20px}
+  .hero{padding:18px 0 12px}
 }
 @media (max-height:520px) and (orientation:landscape){
   :root{--player-h:74px}
@@ -807,7 +829,7 @@ body.has-acct main.wrap{--player-ex:48px}
 .p-acct .pa-me .av{border-radius:var(--r-full);background:var(--primary);color:var(--on-primary)}
 .p-acct .chip{background:rgba(228,226,233,.1);border-radius:var(--r-full)}
 .p-acct .chip:hover{background:rgba(228,226,233,.18);color:var(--di)}
-.p-acct .pa-none{color:var(--di2)}
+
 .cov{border:0;border-radius:var(--r-sm);background:var(--surface-d2)}
 .cov .cov-mask{background:rgba(0,0,0,.5);border-radius:var(--r-sm)}
 .cov.busy .cov-mask::before{border-color:rgba(228,226,233,.28);border-top-color:var(--primary-2)}
@@ -844,10 +866,10 @@ body.has-acct main.wrap{--player-ex:48px}
 .lyr .lyr-top b{font-size:15px;font-weight:500}
 .l-line{padding:9px 6px;font-size:16.5px;line-height:1.74;color:#4f525a}
 .l-line:hover{color:#8b8e97}
-/* 当前句只换颜色，不放大。原先这里是 24px / font-weight:700，
-   放大要靠 font-size 过渡，每切一句整列歌词都要重排一次 —— 卡顿就出在这。 */
+/* 当前句放大走 .acti .o / .tr 上的 transform:scale（见主样式段），
+   这层只管颜色 —— 深色面上补一点发光。当前句的字号不要再写成 font-size，
+   那会让整列歌词每句重排一次。 */
 .l-line.acti{color:var(--lrc-acc,#fff)}
-.lrc-none{color:var(--di2);text-align:center}
 .lyr .lyr-prog{height:4px;border-radius:var(--r-full);background:#3a3a44}
 .lyr .lyr-prog .fill{background:var(--primary-2)}
 .lyr .lyr-prog .knob{display:none}
@@ -915,7 +937,6 @@ body.has-acct main.wrap{--player-ex:48px}
   flex:1;min-width:0;height:40px;padding:0 14px;
   border:0;border-radius:var(--r-full);background:var(--surface);color:var(--on-surface);
 }
-.pladd input::placeholder{color:var(--on-surface-3)}
 .pladd .go{
   flex:none;height:40px;padding:0 20px;border-radius:var(--r-full);
   background:var(--primary);color:var(--on-primary);font-size:14px;font-weight:500;
@@ -923,8 +944,6 @@ body.has-acct main.wrap{--player-ex:48px}
 }
 .pladd .go:hover{background:var(--on-surface)}
 .pladd .go[disabled]{background:var(--surface-3);color:var(--on-surface-3);cursor:default}
-.mnote{margin:0 0 12px;font-size:12px;line-height:1.6;color:var(--on-surface-3)}
-.mnote code{font-family:var(--mono);font-size:11.5px}
 .plcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
 .plcard{position:relative;display:block;width:100%;text-align:left;border-radius:var(--r-md);overflow:hidden;transition:background .15s}
 .plcard:hover{background:rgba(11,87,208,.08)}
@@ -936,6 +955,8 @@ body.has-acct main.wrap{--player-ex:48px}
 }
 .plcard .pl-t{display:block;margin-top:8px;font-size:13.5px;color:var(--on-surface);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .plcard .pl-s{display:block;margin-top:1px;font-size:12px;color:var(--on-surface-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 没取到首曲时这一行是空的，别占高度 */
+.plcard .pl-s:empty{display:none}
 .plcard .pl-x{
   position:absolute;right:6px;top:6px;width:26px;height:26px;border-radius:var(--r-full);
   background:rgba(27,27,33,.62);color:#fff;opacity:0;transition:opacity .15s,background .15s;
@@ -1023,10 +1044,6 @@ body.has-acct main.wrap{--player-ex:48px}
 <!-- 底部留白走 CSS（main.wrap）：播放条多出账号清单那一行时，--player-ex 会变大 -->
 <main class="wrap">
   <section class="hero" id="radioHero">
-    <div class="hero-t">
-      <h1>找首歌听听</h1>
-      <div class="hero-k" id="heroSrc">正在检测可用音源…</div>
-    </div>
     <form class="search" id="searchForm" autocomplete="off">
       <svg class="mag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
       <input id="kw" enterkeyhint="search" aria-label="搜索歌曲">
@@ -1058,17 +1075,16 @@ body.has-acct main.wrap{--player-ex:48px}
 
     <div class="mpane" id="paneHist" role="tabpanel">
       <div class="mcards" id="histCards"></div>
-      <p class="mempty" id="histEmpty">还没有收听记录，搜首歌听听就有了</p>
+      <p class="mempty" id="histEmpty"></p>
     </div>
 
     <div class="mpane" id="panePls" role="tabpanel" hidden>
       <form class="pladd" id="plForm" autocomplete="off">
-        <input id="plId" placeholder="粘贴歌单链接或 ID，例如 3778678" enterkeyhint="done" aria-label="歌单链接或 ID">
+        <input id="plId" enterkeyhint="done" aria-label="歌单链接或 ID">
         <button class="go" type="submit" id="btnPlAdd">导入</button>
       </form>
-      <p class="mnote">meting 没有「按账号列歌单」的接口（<code>type=user</code> 直接 400），OAuth 身份也和网易云账号无关，所以歌单只能手动导入。<code>type=playlist</code> 也只回一串歌曲、连歌单名都没有，标题只能拿 ID 顶着。</p>
       <div class="plcards" id="plCards"></div>
-      <p class="mempty" id="plEmpty">还没有导入歌单</p>
+      <p class="mempty" id="plEmpty"></p>
     </div>
   </section>
 </main>
@@ -1179,6 +1195,10 @@ var lrcBox = document.querySelector(".lrc-box");
    查到就存起来复用。 */
 var progKnob = null, lyrProgKnob = null;
 var DEFAULT_ART = "https://t.alcy.cc/tx";
+/* 顶部状态提示栏总开关。false = 界面上不出现任何提示语，
+   statusModal() 因此变成空操作，调用点照旧留着也不用改。
+   想把提示栏放回来，只改这一处即可（文案都在 statusModal 的调用点上）。 */
+var SHOW_STATUS = false;
 
 /* ---------- 接口地址 ----------
    默认全部走同源 Worker 路由：上游密钥（HMAC）、多站点兜底链都在 Worker 侧，
@@ -1398,7 +1418,7 @@ function runSearch() {
   if (got && got.expire > Date.now()) {
     S.list = got.list.slice();
     S.idx = -1;
-    $("resCount").textContent = got.list.length ? got.list.length + " 首" : "";
+    $("resCount").textContent = got.list.length ? got.list.length + " 首" : "";
     renderSonglist(ul, S.list);
     go.disabled = false;
   } else {
@@ -1414,7 +1434,7 @@ function runSearch() {
     if ($("kw").value.trim() !== q) return;
     S.list = list;
     S.idx = -1;
-    $("resCount").textContent = list.length ? list.length + " 首" : "";
+    $("resCount").textContent = list.length ? list.length + " 首" : "";
     renderSonglist(ul, list);
   }).catch(function () {
     if ($("kw").value.trim() !== q) return;
@@ -1430,11 +1450,14 @@ function runSearch() {
       runSearch();
       return;
     }
-    /* 搜不到和搜失败是两回事，别都写成「没搜到」：这里给一个能点的重试 */
+    /* 搜不到和搜失败是两回事：后者要留一个能点的重试入口。
+       但句子全撤了 —— 只给个转圈的箭头图标，title / aria-label 留着给读屏用。 */
     ul.innerHTML = "";
     var li = document.createElement("li");
     li.className = "empty retry";
-    li.textContent = "搜索没成功，点这里再试一次";
+    li.title = "重试";
+    li.setAttribute("aria-label", "重试搜索");
+    li.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20.5 11a8.5 8.5 0 1 1-2.6 6.1"/><path d="M20.5 4.5v6.5H14"/></svg>';
     li.onclick = function () { runSearch(); };
     ul.appendChild(li);
     $("resCount").textContent = "";
@@ -1444,10 +1467,9 @@ function runSearch() {
 }
 function renderSonglist(ul, list) {
   ul.innerHTML = "";
-  if (!list.length) {
-    ul.innerHTML = '<li class="empty">没搜到，换个关键词试试</li>';
-    return;
-  }
+  /* 没搜到就是空的：不再塞「换个关键词试试」这类句子。
+     搜索框一直还在框上，用户自己知道该干嘛。 */
+  if (!list.length) return;
   for (var i = 0; i < list.length; i++) {
     (function (it, idx) {
       var li = document.createElement("li");
@@ -1653,8 +1675,6 @@ function updateSrcTag() {
   el.title = running ? "正在检测可用音源…"
     : ("当前音源 " + srcName(S.server) + " · 可用 " + okCount() + "/" + CANDIDATES.length + "，点开看检测结果");
   el.classList.toggle("run", running);
-  var hs = $("heroSrc");
-  if (hs) hs.textContent = running ? "正在检测可用音源…" : (srcName(S.server) + " · 可用 " + okCount() + "/" + CANDIDATES.length);
 }
 function openSrcPop() {
   $("srcPop").classList.add("on");
@@ -1710,26 +1730,31 @@ function flash(el) {
   el.classList.add("in");
 }
 /* 没有要显示的词时：把这一行彻底藏掉（不留空行、不留提示语） */
+/* 只在 live 模式（真歌词）时显示，hint / idle 一律不放字。
+   过滤放在这一层而不是去改十来个调用点：提示语散在各处，挨个删容易漏，
+   而且日后有人新加一处 setNow，也不会又冒到屏幕上。 */
 function setMini(mode, text, tr) {
   var box = $("nowLrc");
   if (!box) return;
+  var show = (mode === "live");
+  var ct = show ? (text || "") : "";
+  var tt = show ? (tr || "") : "";
   S.mini = mode;
   var cls = "ml " + mode;
   if (box.className !== cls) box.className = cls;
   var c = $("nowLrcC"), t = $("nowLrcT");
-  var ct = text || "";
-  var tt = tr || "";
   if (c && c.textContent !== ct) { c.textContent = ct; if (ct) flash(c); }
   if (t && t.textContent !== tt) { t.textContent = tt; if (tt) flash(t); }
   box.style.display = (ct || tt) ? "" : "none";
 }
 function setNow(text, hint) { setMini(hint ? "hint" : "idle", text || "", ""); }
 function setArtist(name) { $("nowBy").textContent = name ? "· " + name : ""; }
-/* 歌词行跟随播放：每一句变化时换一次文本，并重放一次上浮入场 */
+/* 歌词行跟随播放：每一句变化时换一次文本，并重放一次上浮入场。
+   这里不再给 hint 让路 —— 提示已不在屏上显示，若仍让 hint 短路，
+   一次「正在解析播放地址」就会把歌词卡住不再跟随。 */
 function syncMini() {
-  if (S.mini === "hint") return;           /* 加载 / 换源 / 失败提示优先 */
   if (!S.list.length || S.idx < 0) { setMini("idle", "", ""); return; }
-  if (!S.lrc.length) { setMini("idle", S.playing ? "这首歌没有歌词" : "", ""); return; }
+  if (!S.lrc.length) { setMini("idle", "", ""); return; }
   var it = (S.lrcIdx >= 0) ? S.lrc[S.lrcIdx] : null;
   if (!it) { setMini("live", "", ""); return; }   /* 间奏：留白，别硬凑一句 */
   setMini("live", it.c, it.tl);
@@ -1738,7 +1763,11 @@ function setBusy(on) {
   S.busy = !!on;
   $("coverBtn").classList.toggle("busy", !!on);
 }
-/* ---------- 播放状态提示（顶部一条，不挡操作） ---------- */
+/* ---------- 播放状态提示（顶部一条，不挡操作） ----------
+   SHOW_STATUS = false 时整条提示栏不上屏，statusModal() 因此是空操作，
+   23 个调用点和这套图标 / DOM 原样留着 —— 提示文案全写在调用点上，
+   挨个删既容易漏，日后有人加回一个调用就又把字放回屏幕了。
+   现在开关只有一处（SHOW_STATUS），改文案的位置也只有调用点。 */
 var SM_ICON = {
   ok: '<svg viewBox="0 0 16 16"><circle class="c" cx="8" cy="8" r="6.6"/><path class="m" d="M5.4 8.2l1.9 1.9 3.4-3.7"/></svg>',
   fail: '<svg viewBox="0 0 16 16"><circle class="c" cx="8" cy="8" r="6.6"/><path class="m" d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4"/></svg>',
@@ -1746,8 +1775,8 @@ var SM_ICON = {
   load: '<svg viewBox="0 0 16 16"><circle class="c" cx="8" cy="8" r="6.6"/><circle class="m" cx="8" cy="8" r="6"/></svg>'
 };
 var smKey = "";
-/* state: load / ok / fail / tip。hold 为自动消失毫秒数 */
 function statusModal(state, title, sub, hold) {
+  if (!SHOW_STATUS) return;
   var m = $("statusModal");
   if (!m) return;
   var key = state + "|" + (title || "") + "|" + (sub || "");
@@ -2256,6 +2285,7 @@ function cleanTr(text) {
       布局，在几十上百行的歌词上就是每句一卡。
    2) 切句只动两个节点的 class。原来是把整列 children 逐个 classList.toggle，
       全部重算样式；而且 .l-line 过渡里带着 font-size，等于整列重排一遍。
+      现在当前句的放大也是 transform:scale —— 字号和行高一律不许动。
    3) 一帧内只写一次 DOM。timeupdate 和 resize 都可能连着触发 updateLrc，
       用 requestAnimationFrame 合并，写入全部集中在同一帧。
    ========================================================= */
@@ -2275,7 +2305,8 @@ function renderLrc() {
   lrcStale = true;
   lrcPending = -1;
   if (!S.lrc.length) {
-    tr.innerHTML = '<div class="lrc-none">这首歌没有歌词</div>';
+    /* 没歌词就留白，不写「这首歌没有歌词」 */
+    tr.innerHTML = "";
     syncMini();
     return;
   }
@@ -2580,7 +2611,7 @@ function renderMine() {
         '<button class="pl-cov" type="button" title="播放这张歌单"><img src="' + escAttr(p.pic || DEFAULT_ART) + '" loading="lazy" decoding="async" alt="">' +
         (p.n ? '<span class="pl-n">' + p.n + ' 首</span>' : '') + '</button>' +
         '<span class="pl-t">歌单 ' + escText(p.id) + '</span>' +
-        '<span class="pl-s">' + (p.first ? "首曲 " + escText(p.first) : "meting 没有歌单名，按 ID 记") + '</span>';
+        '<span class="pl-s">' + (p.first ? "首曲 " + escText(p.first) : "") + '</span>';
       var x2 = document.createElement("button");
       x2.className = "pl-x";
       x2.type = "button";
@@ -2971,13 +3002,7 @@ function renderAcctBar() {
   var box = $("paLists");
   box.innerHTML = "";
   var ls = acctLists();
-  if (!ls.length) {
-    var e = document.createElement("span");
-    e.className = "pa-none";
-    e.textContent = "还没有清单，搜首歌听听就有了";
-    box.appendChild(e);
-    return;
-  }
+  if (!ls.length) return;   /* 没清单就空着，不提示 */
   ls.forEach(function (l) {
     var b = document.createElement("button");
     b.type = "button";
