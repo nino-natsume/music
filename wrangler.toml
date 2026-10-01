@@ -18,7 +18,27 @@ compatibility_date = "2025-01-01"
 # 可选：如需上游鉴权（api.107211.xyz 要求时）——
 # 不要写进本文件，用命令设置：
 #   wrangler secret put MUSIC_TOKEN
-# [vars]
+
+# =========================================================
+# 功能开关：故意不在本文件里配
+# ------------------------------------------------------------
+# OAUTH_ON —— 登录入口。缺省就是关的：页面里不出现登录按钮，
+#              也不接受 OAuth 回调、不保存播放进度、播放条不显示账号清单。
+#              配成 "true" 才开整套账号功能。
+#
+# 要改就只在 Cloudflare Dashboard 里改，别写进 [vars]：
+#   Workers & Pages → 你的 Worker → Settings → Variables and Secrets
+#   → Add variable → Name: OAUTH_ON  Value: "true"  Type: Text
+#
+# 为什么不放 [vars]：
+#   1. 一旦这里写了值，wrangler deploy 会把它当成部署的一部分推上去，
+#      Dashboard 里改的设置容易被这行盖掉，两个地方各说各话很难查；
+#   2. 谁部署谁决定开关，配置跟着环境走，不跟着 git 走 ——
+#      同一个仓库 fork 出好几份部署时，各站点互不影响；
+#   3. 变量名和说明不写进版本库，改名/下线开关不用发 commit。
+#
+# 改完不用重新 deploy，直接生效：前端每次打开页面都会问一次 /config。
+# =========================================================
 
 # 说明：
 # - worker.js 由 build.js 从 index.html 自动生成

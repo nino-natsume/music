@@ -287,6 +287,45 @@ body.paused .cov.live::after{animation-play-state:paused}
 body.paused .p-now .ml .eq i{animation-play-state:paused}
 @keyframes miniIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 
+/* 播放条主体 + 账号清单共用一张卡，圆角和阴影都挂在 .p-bar 上 */
+.p-bar{position:relative}
+.player .p-bar{background:var(--d0);pointer-events:auto}
+/* 账号清单：默认 hidden，只有登录后才出现。整行横向滚动，
+   清单再多也只占一行高度，不把播放条顶得老高。 */
+.p-acct{display:flex;align-items:center;gap:10px;height:40px;padding:0 14px 8px}
+.p-acct[hidden]{display:none}
+.p-acct .pa-me{
+  flex:none;display:flex;align-items:center;gap:6px;height:26px;padding:0 10px 0 4px;
+  border-radius:13px;color:var(--di2);font-size:12px;max-width:150px;
+  transition:color .15s,background .15s;
+}
+.p-acct .pa-me:hover{color:var(--di);background:rgba(255,255,255,.08)}
+.p-acct .pa-me .av{
+  position:relative;width:20px;height:20px;flex:none;border-radius:50%;overflow:hidden;
+  background:var(--acc);color:#fff;font-size:10px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;
+}
+.p-acct .pa-me .av img{width:100%;height:100%;object-fit:cover}
+.p-acct .pa-me .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.p-acct .pa-lists{
+  flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:6px;
+  overflow-x:auto;overflow-y:hidden;scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+}
+.p-acct .pa-lists::-webkit-scrollbar{display:none}
+.p-acct .chip{
+  flex:none;display:flex;align-items:center;gap:5px;height:26px;padding:0 10px;
+  border-radius:13px;background:rgba(255,255,255,.07);color:var(--di2);font-size:12px;
+  white-space:nowrap;transition:color .15s,background .15s;
+}
+.p-acct .chip:hover{background:rgba(255,255,255,.14);color:var(--di)}
+.p-acct .chip .cc{font-size:11px;opacity:.7;font-variant-numeric:tabular-nums}
+.p-acct .pa-none{flex:none;font-size:11.5px;color:var(--di2);opacity:.75}
+/* 播放条多了一行账号清单，正文底部要多让出这段高度（--player-ex 由 JS 的
+   has-acct 切换，两种情况都不写死数值） */
+main.wrap{--player-ex:0px;padding-bottom:calc(var(--player-h) + var(--player-ex) + 32px)}
+body.has-acct main.wrap{--player-ex:48px}
+
 .p-ctrl{display:flex;align-items:center;gap:8px;flex:none}
 /* 圆形幽灵按钮 */
 .ic{
@@ -328,12 +367,14 @@ body.paused .p-now .ml .eq i{animation-play-state:paused}
 .lyr.out{display:flex;pointer-events:none;animation:lyrOut .3s cubic-bezier(.4,0,1,1) both}
 @keyframes lyrIn{from{opacity:0;transform:translate3d(0,30px,0) scale(.982)}to{opacity:1;transform:none}}
 @keyframes lyrOut{from{opacity:1;transform:none}to{opacity:0;transform:translate3d(0,22px,0) scale(.99)}}
-/* 展开时各块依次落位，节奏一致 */
+/* 展开时各块依次落位，节奏一致。
+   注意：歌词区（.lrc-wrap / .lyr-lrc）刻意不给入场动画。
+   外层 .lyr 已经在做整体入场，再叠一层 fadeIn 会让歌词先空 .1s 再花 .5s 渐显，
+   打开歌词页那一瞬看起来就是「卡了一下才出字」。歌词要一挂上就能读。 */
 .lyr.on .lyr-top{animation:rise .42s .04s cubic-bezier(.2,.8,.2,1) both}
-.lyr.on .lrc-wrap{animation:fadeIn .5s .1s ease both}
 .lyr.on .lyr-foot{animation:rise .42s .16s cubic-bezier(.2,.8,.2,1) both}
 @media (prefers-reduced-motion:reduce){
-  .lyr.on,.lyr.out,.lyr.on .lyr-top,.lyr.on .lrc-wrap,.lyr.on .lyr-foot{animation:none}
+  .lyr.on,.lyr.out,.lyr.on .lyr-top,.lyr.on .lyr-foot{animation:none}
 }
 .lyr .bg{
   position:absolute;inset:-60px;background-size:cover;background-position:center;
@@ -353,39 +394,51 @@ body.paused .p-now .ml .eq i{animation-play-state:paused}
 .lyr .lyr-x:hover{background:#24262a;color:var(--di)}
 .lyr .lyr-x svg{width:16px;height:16px}
 /* 歌词页只有词，居中排；不再摆封面 */
-.lyr-main{position:relative;z-index:2;flex:1 1 auto;min-height:0;display:flex;align-items:center;padding:10px 40px}
-.lyr-lrc{flex:1 1 auto;min-width:0;height:100%;animation:fadeIn .6s .12s ease both}
+.lyr-main{position:relative;z-index:2;flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;padding:10px 40px}
+.lyr-lrc{flex:1 1 auto;min-width:0;width:100%;height:100%}
+/* 歌词在窗口里上下左右都居中：文字居中，滚动定位把当前行送到正中线上 */
 .lrc-box{
   position:relative;height:100%;overflow:hidden;
   -webkit-mask-image:linear-gradient(180deg,transparent,#000 16%,#000 84%,transparent);
   mask-image:linear-gradient(180deg,transparent,#000 16%,#000 84%,transparent);
 }
 .lrc-wrap{position:relative;height:100%}
-/* 整列水平居中，歌词行本身也居中对齐 */
-.lrc-tr{position:relative;width:100%;padding:0 8px;transition:transform .45s cubic-bezier(.25,.8,.25,1)}
-.l-line{
-  padding:8px 6px;font-size:15px;line-height:1.72;color:#767a81;cursor:pointer;
-  text-align:center;word-break:break-word;
-  transition:color .22s,font-size .26s,letter-spacing .26s,opacity .22s,font-weight .2s;
+/* 整列水平居中，歌词行本身也居中对齐。
+   will-change 让整列常驻合成层，滚动只走合成器，不再每帧重排。
+   translate3d 而不是 translate：强制走 GPU，避免首次滚动时掉帧。 */
+.lrc-tr{
+  position:relative;width:100%;padding:0 8px;margin:0 auto;
+  transition:transform .34s cubic-bezier(.22,.68,.24,1);
+  will-change:transform;transform:translate3d(0,0,0);
 }
-.l-line:hover{color:#b9bcc2}
+.l-line{
+  padding:8px 6px;font-size:17px;line-height:1.7;color:#4a4d55;cursor:pointer;
+  text-align:center;word-break:break-word;
+  /* 只过渡 color / opacity：这两项不触发布局重排。
+     （原来还过渡 font-size / letter-spacing / font-weight —— 那三项每一句都要
+      重排整列歌词，是切句时那一顿卡顿的主因。） */
+  transition:color .26s linear,opacity .26s linear;
+}
+.l-line:hover{color:#8f939c}
 /* 原文与翻译：同一套字号 / 字重 / 颜色，过渡和入场动画完全一致，
-   两行才会「同步」地一起变大、一起淡入，而不是一快一慢。 */
+   两行才会「同步」地一起淡入，而不是一快一慢。 */
 .l-line .o,.l-line .tr{
   display:block;font-size:inherit;font-weight:inherit;line-height:1.6;
   letter-spacing:inherit;opacity:inherit;
-  transition:color .22s,font-size .26s,letter-spacing .26s,opacity .22s,font-weight .2s;
+  transition:color .26s linear,opacity .26s linear;
 }
 .l-line .tr{margin-top:2px}
-/* 正在播放：放大加重，字距略开；两行一起放大 */
+/* 正在播放：只换颜色，不放大。放大要靠 font-size 过渡，会带着整列反复重排，
+   而且字一变大这一行的行高也跟着变，滚动定位会肉眼可见地抖一下。 */
 .l-line.acti{
-  color:var(--lrc-acc,#fff);font-size:23px;font-weight:700;letter-spacing:.015em;
+  color:var(--lrc-acc,#fff);
   text-shadow:0 0 30px var(--lrc-acc-glow,rgba(255,255,255,.2));
 }
-/* 切到当前句时重放入场动画，原文和翻译一起上浮 */
-.l-line.acti .o,.l-line.acti .tr{animation:lrcIn .42s cubic-bezier(.2,.8,.2,1) both}
-@keyframes lrcIn{from{opacity:0;transform:translateY(9px)}to{opacity:inherit;transform:none}}
-.lrc-none{padding:40px 2px;font-size:13px;color:#6d7076}
+/* 切到当前句时重放入场动画，原文和翻译一起上浮。
+   只动 opacity / transform，两者都在合成器上，不触发 layout。 */
+.l-line.acti .o,.l-line.acti .tr{animation:lrcIn .26s cubic-bezier(.2,.8,.2,1) both}
+@keyframes lrcIn{from{opacity:.2;transform:translate3d(0,5px,0)}to{opacity:1;transform:none}}
+.lrc-none{padding:40px 2px;font-size:13px;color:#6d7076;text-align:center}
 .lyr .lyr-foot{position:relative;z-index:2;padding:0 40px 22px}
 .lyr .lyr-prog{height:3px;margin-bottom:12px}
 .lyr .lyr-bar{display:flex;align-items:center;gap:16px}
@@ -604,6 +657,8 @@ body.paused .p-now .ml .eq i{animation-play-state:paused}
   .lyr .lyr-tools,.lyr .lyr-time{width:64px}
   .lyr .ic-mode{padding:0 9px 0 8px;gap:6px}
   .lyr .ic-mode .tx{display:none}
+  .p-acct{height:38px;padding:0 10px 8px;gap:8px}
+  .p-acct .pa-me{max-width:92px}
   .queue{right:12px;bottom:calc(var(--player-h) + 24px)}
   .srcpop{right:12px}
 }
@@ -712,20 +767,33 @@ body.paused .p-now .ml .eq i{animation-play-state:paused}
   background:transparent;border-top:0;box-shadow:none;
   padding:0 12px calc(12px + env(safe-area-inset-bottom));pointer-events:none;
 }
-.player .prog,.player .p-row{background:var(--surface-d);pointer-events:auto}
+.player .prog,.player .p-bar{background:var(--surface-d);pointer-events:auto}
 .player .prog{height:4px;border-radius:var(--r-xl) var(--r-xl) 0 0;background:#3a3a44;overflow:hidden}
 .player .prog:hover{height:4px}
 .player .prog .fill{background:var(--primary-2);transition:width .1s linear}
 .player .prog .knob{display:none}
-.player .p-row{
-  position:relative;height:calc(var(--player-h) - 4px);padding:0 12px;
-  border-radius:0 0 var(--r-xl) var(--r-xl);box-shadow:var(--e2);
-}
+/* 圆角、阴影、顶盖都交给 .p-bar：账号清单是它下面的一行，
+   圆角留在 .p-row 上会被撑开一条直角边。
+   这里不能加 overflow:hidden —— 顶盖是伸到 .p-bar 外面去盖住进度条那一截的，
+   一裁掉进度条就从卡片里「浮」出来了（原来挂在 .p-row 上时没有这个问题）。 */
+.player .p-bar{border-radius:0 0 var(--r-xl) var(--r-xl);box-shadow:var(--e2)}
 /* 顶盖：把进度条那一截和下面的内容连成一张卡 */
-.player .p-row::before{
+.player .p-bar::before{
   content:"";position:absolute;left:0;right:0;top:-8px;height:9px;
   background:var(--surface-d);border-radius:var(--r-xl) var(--r-xl) 0 0;
 }
+.player .p-row{
+  position:relative;height:calc(var(--player-h) - 4px);padding:0 12px;
+  border-radius:0;box-shadow:none;
+}
+/* 账号清单跟着这张卡的 surface 走 */
+.p-acct{background:var(--surface-d)}
+.p-acct .pa-me{border-radius:var(--r-full)}
+.p-acct .pa-me:hover{background:rgba(228,226,233,.1);color:var(--di)}
+.p-acct .pa-me .av{border-radius:var(--r-full);background:var(--primary);color:var(--on-primary)}
+.p-acct .chip{background:rgba(228,226,233,.1);border-radius:var(--r-full)}
+.p-acct .chip:hover{background:rgba(228,226,233,.18);color:var(--di)}
+.p-acct .pa-none{color:var(--di2)}
 .cov{border:0;border-radius:var(--r-sm);background:var(--surface-d2)}
 .cov .cov-mask{background:rgba(0,0,0,.5);border-radius:var(--r-sm)}
 .cov.busy .cov-mask::before{border-color:rgba(228,226,233,.28);border-top-color:var(--primary-2)}
@@ -760,9 +828,11 @@ body.paused .p-now .ml .eq i{animation-play-state:paused}
 .lyr .lyr-x{border-radius:var(--r-full);color:var(--di2)}
 .lyr .lyr-x:hover{background:rgba(228,226,233,.12);color:var(--di)}
 .lyr .lyr-top b{font-size:15px;font-weight:500}
-.l-line{padding:9px 6px;font-size:15.5px;line-height:1.74;color:#8e9099}
-.l-line:hover{color:#c3c5cd}
-.l-line.acti{font-size:24px;font-weight:700;letter-spacing:.015em}
+.l-line{padding:9px 6px;font-size:16.5px;line-height:1.74;color:#4f525a}
+.l-line:hover{color:#8b8e97}
+/* 当前句只换颜色，不放大。原先这里是 24px / font-weight:700，
+   放大要靠 font-size 过渡，每切一句整列歌词都要重排一次 —— 卡顿就出在这。 */
+.l-line.acti{color:var(--lrc-acc,#fff)}
 .lrc-none{color:var(--di2);text-align:center}
 .lyr .lyr-prog{height:4px;border-radius:var(--r-full);background:#3a3a44}
 .lyr .lyr-prog .fill{background:var(--primary-2)}
@@ -920,7 +990,8 @@ body.paused .p-now .ml .eq i{animation-play-state:paused}
     <button class="src-tag" id="srcTag" title="当前音源" aria-haspopup="true" aria-expanded="false">
       <span class="nm" id="srcCur">网易云</span><span class="ct" id="srcNum">·</span><i class="cv"></i>
     </button>
-    <button class="btn" id="btnLogin">登录</button>
+    <!-- 登录入口默认藏起来：只有 Worker 侧 OAUTH_ON=true 时才显示（见 loadConfig） -->
+    <button class="btn" id="btnLogin" hidden>登录</button>
   </div>
   <!-- 音源检测面板：逐个平台实测「搜得到 / 播得出」 -->
   <div class="srcpop" id="srcPop">
@@ -935,7 +1006,8 @@ body.paused .p-now .ml .eq i{animation-play-state:paused}
   </div>
 </header>
 
-<main class="wrap" style="padding-bottom:calc(var(--player-h) + 32px)">
+<!-- 底部留白走 CSS（main.wrap）：播放条多出账号清单那一行时，--player-ex 会变大 -->
+<main class="wrap">
   <section class="hero" id="radioHero">
     <div class="hero-t">
       <h1>找首歌听听</h1>
@@ -989,6 +1061,7 @@ body.paused .p-now .ml .eq i{animation-play-state:paused}
 
 <footer class="player">
   <div class="prog" id="prog" role="slider" aria-label="播放进度"><div class="fill" id="progFill"></div><div class="knob"></div></div>
+  <div class="p-bar">
   <div class="p-row">
     <div class="p-info">
       <button class="cov" id="coverBtn" aria-label="打开歌词">
@@ -1010,6 +1083,15 @@ body.paused .p-now .ml .eq i{animation-play-state:paused}
       <button class="ic ic-skip ic-next" id="btnNext" title="下一首" aria-label="下一首"></button>
     </div>
     <div class="p-time"><span id="curTime">00:00</span><span class="sep">/</span><span id="durTime">00:00</span></div>
+  </div>
+  <!-- 账号清单：只有 OAUTH_ON=true 且已登录时才出现（默认整条都没有）。
+       数据来源就是「我的音乐」里的收听记录 + 导入的歌单，点一个即以它为队列开唱。 -->
+  <div class="p-acct" id="pAcct" hidden>
+    <button class="pa-me" id="paMe" type="button" title="账号">
+      <span class="av" id="paAv"></span><span class="nm" id="paNm"></span>
+    </button>
+    <div class="pa-lists" id="paLists"></div>
+  </div>
   </div>
 </footer>
 
@@ -1070,9 +1152,18 @@ var S = {
   tk: 0, cands: null, ci: 0, same: 0, tried: null, switching: false,
   retryT: 0, watchT: 0, watching: false, pausedByUser: false, failAt: 0,
   /* 主页歌词行：mode = live（正在放歌词）/ hint（加载、换源、失败提示）/ idle（占位） */
-  mini: "idle", miniIdx: -1, srvRetry: ""
+  mini: "idle", miniIdx: -1, srvRetry: "",
+  /* 歌词区当前带 .acti 的行号（用来做 O(1) 的切句）；
+     seekAt = 下一次 loadedmetadata 要跳到的秒数；
+     resumeT = restoreProgress() 暂存的续播位置，由 playItem 接手转成 seekAt。 */
+  actIdx: -1, seekAt: 0, resumeT: 0
 };
 var audio = document.getElementById("audio");
+var lrcTr = document.getElementById("lyrTr");
+var lrcBox = document.querySelector(".lrc-box");
+/* 进度条上那个圆钮：timeupdate 每秒触发数次，每次都 querySelector 一遍纯属浪费，
+   查到就存起来复用。 */
+var progKnob = null, lyrProgKnob = null;
 var DEFAULT_ART = "https://t.alcy.cc/tx";
 
 /* ---------- 接口地址 ----------
@@ -1673,11 +1764,13 @@ function stopAudio() {
 function setQueue(list, idx) {
   S.list = list.slice();
   S.idx = -1;
+  S.resumeT = 0;
   renderQueue();
   playItem(idx);
 }
 function playFromList(list, idx) {
   S.list = list.slice();
+  S.resumeT = 0;
   renderQueue();
   playItem(idx);
   highlightLists();
@@ -1692,6 +1785,10 @@ function playItem(i) {
   S.lrc = [];
   S.lrcIdx = -1;
   S.same = 0;
+  /* 续播：restoreProgress() 把上次的位置放在 resumeT，这里取走，
+     等 loadedmetadata 出来再真正跳过去。 */
+  S.seekAt = S.resumeT || 0;
+  S.resumeT = 0;
   S.failAt = 0;
   S.tried = {};
   S.switching = false;
@@ -1708,6 +1805,8 @@ function playItem(i) {
   statusModal("load", "正在解析播放地址", (it.title || "") + (it.author ? " · " + it.author : ""));
   doLoad(S.cands[0], 0);
   loadLrc(it.id, S.cands[0].s);
+  /* 换歌了，进度立刻落一次（不落的话刷新页面回到的还是上一首） */
+  saveProgress(true);
 }
 function applyCover() {
   var it = S.list[S.idx];
@@ -2031,9 +2130,26 @@ function renderQueue() {
   }
 }
 /* ---------- 歌词 ---------- */
+/* 清空歌词区：DOM、歌词数据和几何缓存必须一起清。
+   换源（switchSource）也会走这里，而它不经过 playItem —— 如果只清 DOM 而留着
+   S.lrc / S.lrcIdx，新歌词渲染出来时就会用上一首的行号去高亮，还拿旧行高算滚动位置。
+   歌词页是 display:none，量不到高度，所以这里只留 stale 标记，
+   等 openLyrics() 把页面显示出来再重量。 */
+function clearLrc() {
+  S.lrc = [];
+  S.lrcIdx = -1;
+  lrcRows = null;
+  lrcStale = true;
+  lrcPending = -1;
+  S.actIdx = -1;
+  if (!lrcTr) return;
+  lrcTr.innerHTML = "";
+  lrcTr.style.transform = "translate3d(0,0,0)";
+  lrcTr.__tf = "";
+}
 function loadLrc(id, server) {
   var t = S.tk;
-  $("lyrTr").innerHTML = "";
+  clearLrc();
   route(lrcUrl(id, server), upUrl("lrc", id, server), 10000)
     .then(function (r) { return r.text(); })
     .then(function (txt) {
@@ -2119,20 +2235,42 @@ function cleanTr(text) {
   s = s.replace(/[（(]\s*[)）]/g, "");
   return s.trim();
 }
+/* =========================================================
+   歌词渲染的三个性能约定（改这块之前先读完）
+   ------------------------------------------------------------
+   1) 行几何一次量好就缓存。每句切换都去读 offsetTop/clientHeight 会强制同步
+      布局，在几十上百行的歌词上就是每句一卡。
+   2) 切句只动两个节点的 class。原来是把整列 children 逐个 classList.toggle，
+      全部重算样式；而且 .l-line 过渡里带着 font-size，等于整列重排一遍。
+   3) 一帧内只写一次 DOM。timeupdate 和 resize 都可能连着触发 updateLrc，
+      用 requestAnimationFrame 合并，写入全部集中在同一帧。
+   ========================================================= */
+/* lrcRows[i] = { el, top, h }：第 i 行的节点和在整列里的位置。
+   lrcStale = true 表示容器尺寸变了（旋转屏幕、展开歌词页），需要重量。 */
+var lrcRows = null, lrcBoxH = 0, lrcStale = true, lrcRaf = 0, lrcPending = -1;
+
 function renderLrc() {
-  var tr = $("lyrTr");
+  var tr = lrcTr;
+  if (!tr) return;
   tr.innerHTML = "";
-  tr.style.transform = "translateY(0px)";
+  tr.style.transform = "translate3d(0,0,0)";
+  tr.__tf = "";
   S.miniIdx = -1;
+  S.actIdx = -1;
+  lrcRows = null;
+  lrcStale = true;
+  lrcPending = -1;
   if (!S.lrc.length) {
     tr.innerHTML = '<div class="lrc-none">这首歌没有歌词</div>';
     syncMini();
     return;
   }
+  /* 一次性建好再整块塞进去：逐条 appendChild 会让浏览器每插一行就重排一次 */
+  var frag = document.createDocumentFragment();
   for (var i = 0; i < S.lrc.length; i++) {
-    (function (it, idx) {
+    (function (it) {
       var d = document.createElement("div");
-      d.className = "l-line" + (idx === S.lrcIdx ? " acti" : "");
+      d.className = "l-line";
       /* 原文和翻译是同一个 .l-line 里的两行，共用一套样式和入场动画，
          不给它们单独加类，省得两行字号/动效各走各的。 */
       var o = document.createElement("span");
@@ -2146,51 +2284,90 @@ function renderLrc() {
         d.appendChild(s2);
       }
       d.onclick = function () { if (it.t >= 0 && isFinite(audio.duration) && audio.duration) audio.currentTime = it.t; };
-      tr.appendChild(d);
-    })(S.lrc[i], i);
+      frag.appendChild(d);
+    })(S.lrc[i]);
   }
+  tr.appendChild(frag);
+  measureLrc();
+  applyLrcIdx(S.lrcIdx);
   scrollLrc();
   syncMini();
 }
+/* 量一遍行高与容器高。歌词页是 display:none，量出来一定是 0，
+   这时只留个 stale 标记，等 openLyrics() 把页面显示出来再重量。 */
+function measureLrc() {
+  lrcRows = null;
+  if (!lrcBox) { lrcBoxH = 0; lrcStale = true; return; }
+  lrcBoxH = lrcBox.clientHeight || 0;
+  if (!lrcBoxH) { lrcStale = true; return; }
+  lrcStale = false;
+  var kids = lrcTr.children, arr = [];
+  for (var i = 0; i < kids.length; i++) {
+    arr.push({ el: kids[i], top: kids[i].offsetTop, h: kids[i].offsetHeight });
+  }
+  lrcRows = arr;
+}
+/* 只换「上一句」和「这一句」两个节点的 class */
+function applyLrcIdx(idx) {
+  if (!lrcTr) return;
+  var kids = lrcTr.children;
+  if (S.actIdx >= 0 && S.actIdx < kids.length && S.actIdx !== idx) kids[S.actIdx].classList.remove("acti");
+  S.actIdx = idx;
+  if (idx >= 0 && idx < kids.length) kids[idx].classList.add("acti");
+}
+/* 把当前行送到正中线。全部走缓存，不再读任何会触发重排的属性。
+   上限取 -top：保证这一行不会滑出容器顶部（歌词短于容器时 off 为正，正好居中）。 */
 function scrollLrc() {
-  var wrap = document.querySelector(".lrc-wrap");
-  var tr = $("lyrTr");
-  var kids = tr.children;
-  if (!kids.length || S.lrcIdx < 0 || S.lrcIdx >= kids.length) return;
-  var boxH = wrap.clientHeight || 320;
-  var el = kids[S.lrcIdx];
-  var target = el.offsetTop + el.offsetHeight / 2;
-  var off = Math.round(boxH / 2 - target);
-  tr.style.transform = "translateY(" + Math.max(off, -el.offsetTop) + "px)";
+  if (!lrcTr) return;
+  if (!lrcRows || lrcStale) measureLrc();
+  if (!lrcRows || !lrcBoxH) return;   /* 歌词页还关着，等打开时再定位 */
+  if (S.lrcIdx < 0 || S.lrcIdx >= lrcRows.length) return;
+  var row = lrcRows[S.lrcIdx];
+  var off = Math.round(lrcBoxH / 2 - (row.top + row.h / 2));
+  if (off > -row.top) off = -row.top;
+  var v = "translate3d(0," + off + "px,0)";
+  if (lrcTr.__tf === v) return;      /* 同一位置就别再写样式 */
+  lrcTr.__tf = v;
+  lrcTr.style.transform = v;
 }
 function updateLrc() {
   if (!S.lrc.length) return;
   var t = audio.currentTime, idx = -1;
-  for (var i = S.lrc.length - 1; i >= 0; i--) {
+  /* 音频只往前走，从上一句之后往回找；只在 seek 之后才需要全量扫一遍 */
+  var from = (S.lrcIdx >= 0) ? Math.min(S.lrcIdx + 1, S.lrc.length - 1) : S.lrc.length - 1;
+  for (var i = from; i >= 0; i--) {
     if (S.lrc[i].t >= 0 && S.lrc[i].t <= t) { idx = i; break; }
   }
   if (idx === S.lrcIdx) return;
   S.lrcIdx = idx;
-  var kids = $("lyrTr").children;
-  for (var j = 0; j < kids.length; j++) kids[j].classList.toggle("acti", j === idx);
-  scrollLrc();
-  /* 主页播放组件同步显示当前这一句 */
-  syncMini();
+  lrcPending = idx;
+  if (lrcRaf) return;                /* 本帧已经排好了一次，等它跑 */
+  lrcRaf = requestAnimationFrame(function () {
+    lrcRaf = 0;
+    applyLrcIdx(lrcPending);
+    scrollLrc();
+    /* 主页播放组件同步显示当前这一句 */
+    syncMini();
+  });
 }
 
 /* ---------- 进度/时间 ---------- */
 function onTime() {
   var d = isFinite(audio.duration) ? audio.duration : 0;
   var pct = d ? (audio.currentTime / d * 100) : 0;
-  $("progFill").style.width = pct + "%";
-  $("prog").querySelector(".knob").style.left = pct + "%";
-  $("lyrProgFill").style.width = pct + "%";
-  $("lyrProg").querySelector(".knob").style.left = pct + "%";
+  var s = pct + "%";
+  $("progFill").style.width = s;
+  if (!progKnob) progKnob = $("prog").querySelector(".knob");
+  if (progKnob) progKnob.style.left = s;
+  $("lyrProgFill").style.width = s;
+  if (!lyrProgKnob) lyrProgKnob = $("lyrProg").querySelector(".knob");
+  if (lyrProgKnob) lyrProgKnob.style.left = s;
   $("curTime").textContent = fmt(audio.currentTime);
   $("durTime").textContent = fmt(d);
   $("lyrCur").textContent = fmt(audio.currentTime);
   $("lyrDur").textContent = fmt(d);
   updateLrc();
+  saveProgressTick();
 }
 function bindSeek(bar, fillId, knobSel) {
   var dragging = false;
@@ -2236,7 +2413,11 @@ function openLyrics() {
   m.classList.add("on");
   $("lyrTitle").textContent = it.title || "未在播放";
   $("lyrAuthor").textContent = it.author || "";
-  window.setTimeout(scrollLrc, 80);
+  /* 歌词区刚才还是 display:none，量不到高度。display 一翻过来同帧就能读到，
+     所以在这里重量 + 定位 —— 原来那个 setTimeout(80) 会让歌词先落在顶部再跳到中间。 */
+  if (lrcStale || !lrcRows) measureLrc();
+  applyLrcIdx(S.lrcIdx);
+  scrollLrc();
 }
 function closeLyrics() {
   var m = $("lyrView");
@@ -2401,6 +2582,8 @@ function renderMine() {
   $("plEmpty").hidden = PLS.length > 0;
 
   sec.hidden = mineCount() === 0;
+  /* 记录和歌单一变，播放条上的账号清单也要跟着重画（同一份数据，两处入口） */
+  renderAcctBar();
 }
 /* 记录条目还原成能播的形状；au 丢了就只剩 id，播放时会重新解析 */
 function histList() {
@@ -2522,6 +2705,33 @@ function loadProviders() {
     if (out.length) OAUTH_PROVIDERS = out;
   }).catch(function () {});
 }
+/* ---------- 登录 ----------
+   整套账号功能（登录 / 续播进度 / 播放条账号清单）都由 Worker 侧的 OAUTH_ON 开关控制，
+   默认关：没配这个变量就一点都不出现，开关写在 wrangler.toml 的 [vars] 或 Dashboard。
+   页面自己不问「要不要显示」，而是启动时向 Worker 要一次 /config 结论。 */
+var CFG = { oauth: false, loaded: false };
+function loadConfig() {
+  return fetchUrl("/config", 3000).then(function (r) { return r.json(); }).then(function (j) {
+    CFG.oauth = !!(j && j.oauth);
+  }).catch(function () {
+    /* 拿不到配置就当没开：本地直接开 index.html 时同源没有 /config，也正好是这个结果 */
+    CFG.oauth = false;
+  }).then(function () {
+    CFG.loaded = true;
+    applyOAuth();
+  });
+}
+/* 把开关结论落到界面上。关掉开关时顺手把可能残留的进度记录清掉，
+   免得下次开开关时莫名其妙接着上次听。 */
+function applyOAuth() {
+  var btn = $("btnLogin");
+  if (btn) btn.hidden = !CFG.oauth;
+  var u = (CFG.oauth && currentUser()) ? currentUser() : null;
+  renderUser(u);
+  renderAcctBar();
+  if (u) restoreProgress();
+  else if (!CFG.oauth && CFG.loaded) storeWrite(PROG_KEY, null);
+}
 function currentUser() {
   try { return JSON.parse(localStorage.getItem("mus_user") || "null"); } catch (e) { return null; }
 }
@@ -2530,9 +2740,12 @@ function saveUser(u) {
 }
 function clearUser() {
   try { localStorage.removeItem("mus_user"); } catch (e) {}
+  try { localStorage.removeItem(PROG_KEY); } catch (e) {}
 }
 function renderUser(u) {
   var btn = $("btnLogin");
+  if (!btn) return;
+  btn.hidden = !CFG.oauth;
   if (u && u.name) {
     btn.classList.add("user");
     btn.innerHTML =
@@ -2546,6 +2759,7 @@ function renderUser(u) {
   }
 }
 function openLogin() {
+  if (!CFG.oauth) return;   /* 开关关着时按钮本来就点不到，这里再挡一道 */
   $("loginLayer").classList.add("on");
   var u = currentUser();
   var box = $("providerList");
@@ -2595,11 +2809,15 @@ function closeLogin() { $("loginLayer").classList.remove("on"); }
 function doLogout() {
   clearUser();
   closeLogin();
-  renderUser(null);
+  applyOAuth();   /* 顺带把播放条上的账号清单一起收掉 */
 }
 function parseLoginReturn() {
   var q = new URLSearchParams(location.search);
   if (q.get("oauth_success") === "1") {
+    /* 能带着 oauth_success 回调回来，就说明这个站点确实开着 OAuth。
+       先乐观当成开着 —— /config 的结论回来之前就渲染，不然会出现
+       「登录成功了，头像和登录按钮却还没出现」的一瞬。 */
+    CFG.oauth = true;
     saveUser({
       name: q.get("name") || "用户",
       username: q.get("username") || "",
@@ -2608,11 +2826,151 @@ function parseLoginReturn() {
       provider: q.get("provider") || "",
       at: Date.now()
     });
-    renderUser(currentUser());
     if (history.replaceState) history.replaceState(null, "", location.pathname + location.hash);
-  } else {
-    renderUser(currentUser());
   }
+  applyOAuth();
+}
+
+/* =========================================================
+   播放进度（登录后才生效）
+   ------------------------------------------------------------
+   OAuth 只回身份、不给 token、也没有服务端会话（见上面「我的音乐」的能力
+   边界），所以进度只能存本机 localStorage，并且严格挂在登录态下：
+     · OAUTH_ON 关着 → 一概不写；
+     · 没登录 / 退出登录 → 一概不写，且把旧记录抹掉；
+     · 登录中 → 记「队列 + 第几首 + 播到第几秒」，下次打开原样接着。
+   不自动续播：浏览器一定会拦自动播放，不如把队列摆好等用户点。
+   ========================================================= */
+var PROG_KEY = "mus_prog";
+var PROG_TTL = 7 * 24 * 3600 * 1000;   /* 超过一周的记录不认了 */
+var PROG_MAX = 200;                     /* 队列最多存 200 首 */
+var PROG_GAP = 5000;                    /* 两次落盘至少隔 5 秒 */
+var progSavedAt = 0, progRestored = false;
+
+function slimSong(it) {
+  return {
+    id: it.id || "", au: it.au || "", server: it.server || S.server,
+    title: it.title || "", author: it.author || "", pic: it.pic || ""
+  };
+}
+function saveProgress(force) {
+  if (!CFG.oauth || !currentUser()) return;
+  if (S.idx < 0 || !S.list[S.idx]) return;
+  var now = Date.now();
+  if (!force && now - progSavedAt < PROG_GAP) return;
+  progSavedAt = now;
+  var list = [];
+  for (var i = 0; i < S.list.length && i < PROG_MAX; i++) list.push(slimSong(S.list[i]));
+  storeWrite(PROG_KEY, {
+    at: now, idx: S.idx, server: S.server, mode: S.mode,
+    t: Math.max(0, audio.currentTime || 0), list: list
+  });
+}
+/* timeupdate 一秒好几回，这里只是过一道时间闸 */
+function saveProgressTick() { saveProgress(false); }
+/* 恢复上次的位置。只摆队列和界面，不碰 <audio>；
+   用户点播放键时 clickPlay() 会走 playItem(S.idx)，由 resumeT 接着跳。 */
+function restoreProgress() {
+  var u = currentUser();
+  if (!CFG.oauth || !u) return false;
+  if (progRestored) return false;       /* 已经摆过一次了，别重复拉一遍歌词 */
+  var r = storeRead(PROG_KEY, null);
+  if (!r || !Array.isArray(r.list) || !r.list.length) return false;
+  if (r.idx == null || r.idx < 0 || r.idx >= r.list.length) return false;
+  if (!r.at || (Date.now() - r.at) > PROG_TTL) return false;
+  var it = r.list[r.idx];
+  if (!it || !it.title || !it.id) return false;
+  progRestored = true;
+  S.list = r.list.slice();
+  S.idx = r.idx;
+  S.resumeT = Math.max(0, r.t || 0);
+  if (r.server) { S.server = r.server; setSrcTag(r.server); }
+  if (r.mode >= 0 && r.mode <= 2) setMode(r.mode);
+  renderQueue();
+  highlightLists();
+  renderMine();
+  /* 把当前这一首显示出来：歌名、封面、歌词都先到位，audio.src 仍然空着 */
+  $("nowTitle").textContent = it.title || "未在播放";
+  setArtist(it.author);
+  setNow("上次听到 " + fmt(S.resumeT) + "，点播放继续", false);
+  applyCover();
+  loadLrc(it.id, it.server || S.server);
+  progSavedAt = Date.now();
+  return true;
+}
+/* <audio> 拿到时长后把续播位置跳过去。跳转本身会触发一次 timeupdate，
+   所以先摘掉 seekAt，避免被当成用户拖动又存回去一遍。 */
+function applySeekAt() {
+  var t = S.seekAt;
+  if (!(t > 0)) return;
+  S.seekAt = 0;
+  var d = isFinite(audio.duration) ? audio.duration : 0;
+  if (!d) return;
+  audio.currentTime = Math.min(t, Math.max(0, d - 1));
+  updateLrc();
+}
+
+/* =========================================================
+   播放条上的账号清单
+   ------------------------------------------------------------
+   OAuth 身份和网易云账号没有关系，meting 也没有「按用户列歌单」的接口，
+   所以这里的「账号清单」就是登录账号名下的本地清单：收听记录 + 导入的歌单。
+   点一个就以它为队列开唱。开关关着或没登录时整条都不出现。
+   ========================================================= */
+function acctLists() {
+  var out = [];
+  if (HIST.length) out.push({ k: "hist", name: "收听记录", n: HIST.length });
+  for (var i = 0; i < PLS.length; i++) {
+    var p = PLS[i];
+    out.push({ k: "pl:" + p.id, name: "歌单 " + p.id, n: p.n || 0 });
+  }
+  return out;
+}
+function playAcctList(k) {
+  if (k === "hist") {
+    var hl = histList();
+    if (!hl.length) { statusModal("tip", "收听记录是空的", "搜首歌听听就有了"); return; }
+    setQueue(hl, 0);
+    statusModal("ok", "已加入播放", "收听记录 " + hl.length + " 首");
+    return;
+  }
+  if (k.slice(0, 3) === "pl:") openPlaylist({ id: k.slice(3) });
+}
+function renderAcctBar() {
+  var bar = $("pAcct");
+  if (!bar) return;
+  var u = (CFG.oauth && currentUser()) ? currentUser() : null;
+  if (!u || !u.name) {
+    bar.hidden = true;
+    document.body.classList.remove("has-acct");
+    return;
+  }
+  bar.hidden = false;
+  document.body.classList.add("has-acct");
+  var av = $("paAv");
+  av.innerHTML = u.avatar ? '<img src="' + escAttr(u.avatar) + '" alt="">' : escText(u.name.charAt(0));
+  var avi = av.querySelector("img");
+  if (avi) imgFallback(avi);
+  $("paNm").textContent = u.name;
+  var box = $("paLists");
+  box.innerHTML = "";
+  var ls = acctLists();
+  if (!ls.length) {
+    var e = document.createElement("span");
+    e.className = "pa-none";
+    e.textContent = "还没有清单，搜首歌听听就有了";
+    box.appendChild(e);
+    return;
+  }
+  ls.forEach(function (l) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip";
+    b.title = "播放「" + l.name + "」";
+    b.innerHTML = '<span class="cn">' + escText(l.name) + '</span>' + (l.n ? '<span class="cc">' + l.n + '</span>' : '');
+    b.onclick = function () { playAcctList(l.k); };
+    box.appendChild(b);
+  });
 }
 
 /* ---------- 事件 ---------- */
@@ -2664,6 +3022,7 @@ $("coverBtn").onclick = openLyrics;
 $("nowBtn").onclick = openLyrics;
 $("btnLyrClose").onclick = closeLyrics;
 $("btnLogin").onclick = openLogin;
+$("paMe").onclick = openLogin;
 $("btnCloseLogin").onclick = closeLogin;
 $("mineCard").addEventListener("click", function (e) {
   var t = e.target.closest ? e.target.closest(".tab") : null;
@@ -2721,6 +3080,8 @@ document.addEventListener("click", function (e) {
 });
 
 audio.addEventListener("timeupdate", onTime);
+/* 续播位置要等时长出来才知道能跳到哪，所以放在这里而不是 playItem 里 */
+audio.addEventListener("loadedmetadata", applySeekAt);
 audio.addEventListener("playing", function () {
   /* 真正开始出声：清掉加载看门狗，重置同源重试计数 */
   clearT("watchT");
@@ -2732,15 +3093,23 @@ audio.addEventListener("playing", function () {
   if (it) setArtist(it.author);
   pushHistory(it);
   syncMini();
+  saveProgress(true);
 });
-audio.addEventListener("pause", function () { setPlaying(false); });
+audio.addEventListener("pause", function () { setPlaying(false); saveProgress(true); });
 audio.addEventListener("ended", onEnded);
 audio.addEventListener("error", function (e) {
   var me = e.target.error;
   if (me && me.code === 1) return;   /* ABORTED：被主动打断，不算失败 */
   onPlayFail(me);
 });
-window.addEventListener("resize", function () { scrollLrc(); });
+/* 关标签页 / 切到后台时先落一次，免得进度停在最后几秒 */
+document.addEventListener("visibilitychange", function () { if (document.hidden) saveProgress(true); });
+window.addEventListener("pagehide", function () { saveProgress(true); });
+window.addEventListener("resize", function () {
+  /* 转屏 / 改窗口后行高全变了，缓存作废重量一遍 */
+  measureLrc();
+  scrollLrc();
+});
 var MODE_TIPS = ["顺序播放", "单曲循环", "随机播放"];
 var MODE_SHORT = ["顺序", "单曲", "随机"];
 function setMode(m) {
@@ -2793,6 +3162,9 @@ setSrcTag(S.server);
 renderSrcPanel();
 updateSrcTag();
 parseLoginReturn();
+/* 再问 Worker 一次「这个站到底开没开 OAuth」：结论回来后校正登录入口和续播。
+   拿不到（比如本地直接开 index.html）就保持默认的关闭状态。 */
+loadConfig();
 /* 后台跑一轮多音源检测：不阻塞首屏，结论进面板与换源池 */
 (function () {
   var go = function () { scanSources(false, function () {}); };

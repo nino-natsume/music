@@ -32,6 +32,7 @@ const BACKEND = `
 /* =========================================================
    后端：Cloudflare Worker 路由
    /          播放器页面
+   /config    站点功能开关（目前只有登录：OAUTH_ON，默认关）
    /api       搜索 / 榜单 / 歌单 JSON（代理 api.107211.xyz）
    /resolve   只回音频/封面的真实地址（播放器主用这条路）
    /stream    307 跳到音频地址
@@ -50,6 +51,22 @@ var CORS = {
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Max-Age": "86400"
 };
+/* =========================================================
+   功能开关：默认全关，要什么显式配什么
+   ------------------------------------------------------------
+   OAUTH_ON：登录入口。缺省（没配这个变量）就是关的，页面里不出现登录按钮、
+   也不接受 OAuth 回调 —— 默认就把账号这套东西整个藏起来。
+   配成字符串 "true"（Worker vars 里的值都是字符串）才开。
+   ========================================================= */
+function flagOn(v) {
+  if (v === true) return true;
+  v = String(v == null ? "" : v).trim().toLowerCase();
+  return v === "true" || v === "1" || v === "yes" || v === "on";
+}
+function oauthOn(env) { return flagOn(env ? env.OAUTH_ON : ""); }
+async function handleConfig(env) {
+  return json({ oauth: oauthOn(env) }, 200, { "cache-control": "no-store" });
+}
 var json = ((obj, status = 200, extra = null) => new Response(JSON.stringify(obj), {
   status,
   headers: { "content-type": "application/json; charset=utf-8", ...CORS, "cache-control": "no-store", ...(extra || {}) }
@@ -587,6 +604,7 @@ var worker_default = {
       const hb = { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300, s-maxage=300", ...CORS };
       return new Response(HTML, { headers: hb });
     }
+    if (p === "/config") return handleConfig(env);
     if (p === "/api" || p.startsWith("/api/")) return handleApi(url, env);
     if (p === "/sources") return handleSources(env);
     if (p === "/resolve") return handleResolve(url, env);

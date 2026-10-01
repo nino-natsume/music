@@ -126,10 +126,51 @@ node build.js
 npx wrangler deploy
 ```
 
-## 可选环境变量配置
+## 环境变量配置
 
-| 变量 | 说明 |
-|---|---|
-| `MUSIC_TOKEN` | 上游 API 鉴权 token（HMAC-SHA1）。留空则匿名访问，通常无需配置 |
+变量**只在 Cloudflare Dashboard 里配**，不写进 `wrangler.toml`（原因见文末）。
 
-可在 Dashboard → Worker → Settings → Variables 中设置，或在 `wrangler.toml` 的 `[vars]` 中修改。
+> Dashboard → **Workers & Pages** → 你的 Worker → **Settings** → **Variables and Secrets** → **Add variable**
+
+| 变量 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `OAUTH_ON` | Text | 不填 = 关 | 登录开关。**默认关闭**：没配这个变量时，页面里不出现登录按钮，也不接受 OAuth 回调、不保存播放进度、播放条上不显示账号清单。填 `"true"` 才整套打开 |
+| `MUSIC_TOKEN` | Secret | 不填 | 上游 API 鉴权 token（HMAC-SHA1）。留空则匿名访问，通常无需配置 |
+
+改完**不用重新 deploy**，直接生效：前端每次打开页面都会问 Worker 要一次 `/config`。
+
+命令行等价写法（适合 CI，注意它同样是「部署期」配置）：
+
+```bash
+npx wrangler secret put MUSIC_TOKEN   # 敏感值走 secret，不进版本库
+# OAUTH_ON 不是敏感值，但建议也用 Dashboard 改，不要写进 [vars]
+```
+
+### 为什么不用 `wrangler.toml` 的 `[vars]`
+
+1. **会被部署覆盖**：只要 `[vars]` 里有 `OAUTH_ON`，`wrangler deploy` 就会把它当部署的一部分推上去，Dashboard 里改的值容易被它盖掉，两个地方各说各话很难排查。
+2. **配置跟着环境走，不跟着 git 走**：这个仓库是单文件 Worker，很容易被 fork 出好几份部署。各站点的开关应该在各自 Dashboard 里各自决定，合并上游的 commit 不该动到别人的开关。
+3. **不污染版本库**：开关改名、下线都不需要发 commit。
+
+`wrangler.toml` 里留了一段注释说明这件事，故意的，别把 `[vars]` 加回去。
+
+### OAUTH_ON 打开后多出来的三件事
+
+1. **登录**：走 `oauth.107211.xyz`，回调带参数跳回本页，身份存本机 `localStorage`。
+   页面启动时向 `/config` 要一次结论（`{ "oauth": true|false }`），据此决定登录入口显不显示 —— 不配就是完全没有。
+2. **续播进度**：登录后自动记「队列 + 第几首 + 播到第几秒」（`localStorage` 的 `mus_prog`），
+   超过 7 天的记录不认。下次打开把队列和界面原样摆好，**不自动播放**（浏览器必然拦），
+   点播放键接着播。退出登录或关掉 `OAUTH_ON` 会把这条记录抹掉。
+3. **播放条上的账号清单**：播放组件下方多一行，列出该账号名下的清单
+   （收听记录 + 导入的歌单），点一个就以它为队列开唱。
+
+> 注意：OAuth 只回 `name/email/avatar`，既没有 token 也没有服务端会话，
+> 和网易云账号毫无关系；meting 也没有「按账号列歌单」的接口（`type=user` 直接 400）。
+> 所以「账号清单」指的是登录账号名下的**本地**清单，数据存在本机，别当成云端歌单同步。
+
+### 为什么用变量开关而不是写死
+
+这个播放器是单文件部署到 Worker 上的，同一份 `index.html` 会被人 fork 走改成自己的站点。
+默认把账号这一整套（登录面板、OAuth 跳转、进度落盘）全部关掉，别人部署后不会莫名其妙
+跳去别人的 OAuth 站点，也不会莫名其妙往 localStorage 里写用户数据。
+
