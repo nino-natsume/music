@@ -65,6 +65,11 @@ var HTML = `<!DOCTYPE html>
   --mono:"Roboto Mono",ui-monospace,Consolas,Menlo,"Noto Sans Mono CJK SC",monospace;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* hidden 属性必须压得住任何 display。
+   .btn 上有 display:flex，作者样式优先级高于浏览器默认的 [hidden]{display:none}，
+   于是 hidden=true 却照样显示 —— 登录按钮会不受 OAUTH_ON 控制一直杵在顶栏上。
+   这里统一压死，hidden 才是个靠得住的开关。 */
+[hidden]{display:none !important}
 html,body{height:100%}
 body{
   font-family:var(--sans);
@@ -303,7 +308,6 @@ body.paused .p-now .ml .eq i{animation-play-state:paused}
 /* 账号清单：默认 hidden，只有登录后才出现。整行横向滚动，
    清单再多也只占一行高度，不把播放条顶得老高。 */
 .p-acct{display:flex;align-items:center;gap:10px;height:40px;padding:0 14px 8px}
-.p-acct[hidden]{display:none}
 .p-acct .pa-me{
   flex:none;display:flex;align-items:center;gap:6px;height:26px;padding:0 10px 0 4px;
   border-radius:13px;color:var(--di2);font-size:12px;max-width:150px;
@@ -2720,19 +2724,21 @@ function loadProviders() {
    默认关：没配这个变量就一点都不出现，开关写在 wrangler.toml 的 [vars] 或 Dashboard。
    页面自己不问「要不要显示」，而是启动时向 Worker 要一次 /config 结论。 */
 var CFG = { oauth: false, loaded: false };
+/* 问 Worker 要一次「这个站到底开没开 OAuth」。只有 Worker 明确回 {oauth:true}
+   才开；未配置、配成 off/false/空、以及整个请求失败（本地直接开 index.html
+   时同源没有 /config），都按关闭处理 —— 拿不到结论就当没开，不猜。 */
 function loadConfig() {
   return fetchUrl("/config", 3000).then(function (r) { return r.json(); }).then(function (j) {
     CFG.oauth = !!(j && j.oauth);
   }).catch(function () {
-    /* 拿不到配置就当没开：本地直接开 index.html 时同源没有 /config，也正好是这个结果 */
     CFG.oauth = false;
   }).then(function () {
     CFG.loaded = true;
     applyOAuth();
   });
 }
-/* 把开关结论落到界面上。关掉开关时顺手把可能残留的进度记录清掉，
-   免得下次开开关时莫名其妙接着上次听。 */
+/* 把开关结论落到界面上。确定是关的时候，把残留的登录态和进度一起抹掉，
+   免得以后有人把开关打开，这个浏览器就莫名其妙是「已登录」的状态。 */
 function applyOAuth() {
   var btn = $("btnLogin");
   if (btn) btn.hidden = !CFG.oauth;
@@ -2740,7 +2746,7 @@ function applyOAuth() {
   renderUser(u);
   renderAcctBar();
   if (u) restoreProgress();
-  else if (!CFG.oauth && CFG.loaded) storeWrite(PROG_KEY, null);
+  else if (CFG.loaded && !CFG.oauth) clearUser();
 }
 function currentUser() {
   try { return JSON.parse(localStorage.getItem("mus_user") || "null"); } catch (e) { return null; }
@@ -3220,9 +3226,12 @@ var CORS = {
 /* =========================================================
    功能开关：默认全关，要什么显式配什么
    ------------------------------------------------------------
-   OAUTH_ON：登录入口。缺省（没配这个变量）就是关的，页面里不出现登录按钮、
-   也不接受 OAuth 回调 —— 默认就把账号这套东西整个藏起来。
-   配成字符串 "true"（Worker vars 里的值都是字符串）才开。
+   OAUTH_ON：登录入口。不填（未配置）就是关的 —— 页面里不出现登录按钮、
+   也不接受 OAuth 回调、不保存播放进度、不显示播放条上的账号清单。
+   只有明确写成 true / 1 / yes / on 才开；off / false / no / 0 / 空串 /
+   乃至拼错的 "ture"，都一律按关闭算（开关宁可关错，不能关反）。
+   配置位置：Cloudflare Dashboard → Worker → Settings → Variables and Secrets，
+   不写进 wrangler.toml 的 [vars]（那里写了会被 deploy 推上去盖掉 Dashboard）。
    ========================================================= */
 function flagOn(v) {
   if (v === true) return true;
