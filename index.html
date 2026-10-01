@@ -434,6 +434,13 @@ body.has-acct main.wrap{--player-ex:48px}
   transition:transform .34s cubic-bezier(.22,.68,.24,1);
   will-change:transform;transform:translate3d(0,0,0);
 }
+/* 上下留白：各占半个歌词区高度。
+   有了它，「把当前行送到正中线」这个位移在任何一行都成立 ——
+   头一句、末一句也能落在正中线上，而不是被容器边界卡在顶部/底部。
+   留白是空的（没有文字、没有行高），不占可读内容，也不会被选中。 */
+.lrc-tr::before,.lrc-tr::after{content:"";display:block}
+.lrc-tr::before{height:var(--lrc-pad,0px)}
+.lrc-tr::after{height:var(--lrc-pad,0px)}
 .l-line{
   padding:8px 6px;font-size:17px;line-height:1.7;color:#4a4d55;cursor:pointer;
   text-align:center;word-break:break-word;
@@ -2336,6 +2343,10 @@ function measureLrc() {
   lrcBoxH = lrcBox.clientHeight || 0;
   if (!lrcBoxH) { lrcStale = true; return; }
   lrcStale = false;
+  /* 上下留白各半个歌词区高：整列因此比容器长出一屏，
+     于是任何一行都能被送到正中线 —— 头一句和末一句也不例外。
+     留白用 ::before/::after 实现，不占 children，所以下面只量真实的歌词行。 */
+  lrcTr.style.setProperty("--lrc-pad", Math.round(lrcBoxH / 2) + "px");
   var kids = lrcTr.children, arr = [];
   for (var i = 0; i < kids.length; i++) {
     arr.push({ el: kids[i], top: kids[i].offsetTop, h: kids[i].offsetHeight });
@@ -2351,11 +2362,10 @@ function applyLrcIdx(idx) {
   if (idx >= 0 && idx < kids.length) kids[idx].classList.add("acti");
 }
 /* 把当前行送到正中线。全部走缓存，不再读任何会触发重排的属性。
-   位移要夹在整列的范围里，否则开头几句会被顶在容器上沿：原来那句
-   「off 不超过 -row.top」等于强行把这一行贴到顶部，歌词刚开始那几句
-   于是全挤在上面。正确的边界是拿整列高度算 —— 整列比容器长时夹在
-   [lrcBoxH - total, 0]（首行不越过顶部、末行不越过底部），
-   整列比容器短时干脆整体居中，不做滚动。 */
+   measureLrc() 给整列加了上下各半屏的留白，所以整列总是比容器长出一屏，
+   首行和末行也够得到正中线 —— 位移不再需要按容器边界钳制，
+   头一句、末一句不会被顶在顶部或压在底部。
+   只在整列比容器短（歌词极少）时才把整列居中。 */
 function scrollLrc() {
   if (!lrcTr) return;
   if (!lrcRows || lrcStale) measureLrc();
@@ -2363,17 +2373,13 @@ function scrollLrc() {
   if (S.lrcIdx < 0 || S.lrcIdx >= lrcRows.length) return;
   var row = lrcRows[S.lrcIdx];
   var last = lrcRows[lrcRows.length - 1];
-  var total = last.top + last.h;
-  var off;
-  if (total <= lrcBoxH) off = Math.round((lrcBoxH - total) / 2);
-  else {
-    off = Math.round(lrcBoxH / 2 - (row.top + row.h / 2));
-    if (off > 0) off = 0;                          /* 首行到顶就停 */
-    if (off < lrcBoxH - total) off = lrcBoxH - total;  /* 末行到底就停 */
-  }
+  var contentH = last.top + last.h;        /* 只有歌词行，不含上下留白 */
+  var total = contentH + lrcBoxH;          /* 留白后整列的高度 */
+  var off = Math.round(lrcBoxH / 2 - (row.top + row.h / 2));
+  if (total <= lrcBoxH) off = Math.round((lrcBoxH - contentH) / 2);  /* 歌词少，整体居中 */
   var v = "translate3d(0," + off + "px,0)";
   if (lrcTr.__tf === v) return;      /* 同一位置就别再写样式 */
-  lrcTr.__tf = v;
+lrcTr.__tf = v;
   lrcTr.style.transform = v;
 }
 function updateLrc() {
