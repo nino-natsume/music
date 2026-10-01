@@ -494,16 +494,19 @@ body.has-acct main.wrap{--player-ex:48px}
 .lyr .lyr-time{flex:none;width:82px;font-size:11.5px;color:var(--di2);font-variant-numeric:tabular-nums}
 .lyr .lyr-ctrl{flex:1;display:flex;align-items:center;justify-content:center;gap:6px}
 .lyr .lyr-tools{flex:none;display:flex;align-items:center;gap:8px;width:132px;justify-content:flex-end}
-/* 播放方式：药丸按钮 + 纯 CSS 图标，三种模式各一个形状（同样不用 SVG / 字体符号） */
+/* 播放方式：药丸按钮 + 纯 CSS 图标，三种模式各一个形状（同样不用 SVG / 字体符号）
+   造型跟播放条右侧那些清单按钮（.p-acct .chip）对齐：同样的胶囊圆角、同样的
+   半透明填充底、同样的小字号。原来这里是「描边 + 深底」的路子，在两个药丸
+   摆在一起的歌词底栏里看着像另一个控件。 */
 .lyr .ic-mode{
-  width:auto;height:30px;padding:0 12px 0 10px;gap:7px;border-radius:15px;
-  background:#1d1f23;box-shadow:inset 0 0 0 1px #2d3036;
-  color:var(--di2);font-size:12px;line-height:1;letter-spacing:.02em;
-  transition:color .18s,background .18s,box-shadow .18s,transform .12s;
+  width:auto;height:26px;padding:0 10px 0 8px;gap:6px;border-radius:13px;
+  background:rgba(255,255,255,.07);box-shadow:none;
+  color:var(--di2);font-size:12px;font-weight:400;line-height:1;letter-spacing:.02em;
+  transition:color .15s,background .15s,transform .12s;
 }
-.lyr .ic-mode:hover{color:var(--di);background:#26282d;box-shadow:inset 0 0 0 1px #3d4046}
-.lyr .ic-mode:active{transform:scale(.95)}
-.lyr .ic-mode.on{color:#e8a473;background:rgba(232,164,115,.1);box-shadow:inset 0 0 0 1px rgba(232,164,115,.34)}
+.lyr .ic-mode:hover{color:var(--di);background:rgba(255,255,255,.14);box-shadow:none}
+.lyr .ic-mode:active{transform:scale(.95);background:rgba(255,255,255,.14)}
+.lyr .ic-mode.on{color:#e8a473;background:rgba(232,164,115,.14);box-shadow:none}
 .lyr .ic-mode .mi{position:relative;width:15px;height:15px;flex:none}
 .lyr .ic-mode .tx{white-space:nowrap}
 /* 顺序播放：两条横线，行尾一个小三角（走带感） */
@@ -734,6 +737,33 @@ body.has-acct main.wrap{--player-ex:48px}
   .res-hd{padding:11px 12px}
   .hero{padding:18px 0 12px}
 }
+/* ============ 仅移动端：播放组件 ============
+   1) 上 / 播放 / 下 挪到右侧，歌名留在左侧
+   2) 歌名必须能显示出来
+   3) 播放组件内不显示用户信息和收听记录
+
+   桌面那版是 1fr auto 1fr 三列，控制组正好落在页面正中。窄屏上这么排是
+   反的：歌名左边只分到 1fr，而右边还有一整列 1fr 的空位（p-time 被藏了，
+   但列还在），标题被挤成几个字。所以这里换成两列：歌名吃满余量，按钮贴右。
+
+   账号那一行（头像 + 收听记录 / 歌单清单）在小屏上又占高度又挤歌名，
+   整条收起来。正文底部多让的那段高度也得跟着归零，不然会留一块空白。
+   歌单和收听记录在「我的音乐」里都还在，只是不再往播放条上挂。
+
+   竖屏按 max-width 判，横过来的手机（宽 600~900）靠 pointer:coarse 兜住，
+   触屏笔记本不在这条规则里。 */
+@media (max-width:520px),(pointer:coarse) and (max-width:900px){
+  .p-row{grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:0 12px}
+  .p-row .p-ctrl{grid-column:2;justify-self:end}
+  .p-row .p-time{display:none}
+  .p-info{min-width:0}
+  /* 歌名吃掉剩余宽度，歌手名让位 —— 先保证标题读得出来 */
+  .p-now .t .tt{flex:1 1 auto}
+  .p-now .t .by{flex:0 1 auto;max-width:40%}
+  /* 播放组件内不显示用户信息和收听记录 */
+  .p-acct{display:none}
+  body.has-acct main.wrap{--player-ex:0px}
+}
 /* 矮屏横屏（手机横过来、分屏、桌面小窗）：纵向空间是稀缺资源。
    顶栏和底栏各占 53+79=132px，320 高的屏上歌词只剩 186px。
    所以这里把两者压扁：顶栏收成一行小字，底栏改成进度条和控件同一行，
@@ -770,6 +800,12 @@ body.has-acct main.wrap{--player-ex:48px}
   .lyr .lyr-x::before{content:"";position:absolute;inset:-6px}
   .srcpop .sp-x::before{content:"";position:absolute;inset:-10px}
   .queue .qh .x::before{content:"";position:absolute;inset:-8px}
+  /* 播放方式按钮例外：它是胶囊，走上面那条 40px min-height 会把视觉高度
+     撑到 40px，跟旁边那些 26px 的清单药丸对不上了。这里把外观压回 26px，
+     触摸面积改用 ::before 外扩补足（inset:-7px → 26+14=40px），
+     点得着但看起来还是那颗小药丸。 */
+  .lyr .ic-mode{min-height:26px}
+  .lyr .ic-mode::before{content:"";position:absolute;inset:-7px}
 }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important;scroll-behavior:auto !important}
@@ -914,16 +950,18 @@ body.has-acct main.wrap{--player-ex:48px}
 .lyr .lyr-prog{height:4px;border-radius:var(--r-full);background:#3a3a44}
 .lyr .lyr-prog .fill{background:var(--primary-2)}
 .lyr .lyr-prog .knob{display:none}
-/* 播放方式：M3 outlined button + 纯 CSS 图标 */
+/* 播放方式：跟播放条右侧清单按钮（.p-acct .chip）同一套胶囊 + 填充底。
+   这里原本是 M3 outlined（1px 实边描边），和旁边那颗幽灵圆形按钮、
+   以及播放条上的清单药丸都不一样，看着像外挂进来的。 */
 .lyr .ic-mode{
-  height:40px;padding:0 16px 0 14px;gap:8px;border-radius:var(--r-full);
-  background:transparent;border:1px solid #4a4a55;color:var(--di2);
-  font-size:14px;font-weight:500;box-shadow:none;
+  height:26px;padding:0 10px 0 8px;gap:6px;border-radius:13px;
+  background:rgba(228,226,233,.1);border:0;color:var(--di2);
+  font-size:12px;font-weight:400;box-shadow:none;
 }
-.lyr .ic-mode:hover{background:rgba(228,226,233,.1);border-color:#6a6a78;color:var(--di)}
-.lyr .ic-mode:active{background:rgba(228,226,233,.16)}
-.lyr .ic-mode.on{color:var(--primary-2);border-color:var(--primary-2);background:rgba(168,199,255,.1)}
-.lyr .ic-mode .mi{width:18px;height:18px}
+.lyr .ic-mode:hover{background:rgba(228,226,233,.18);border-color:transparent;color:var(--di)}
+.lyr .ic-mode:active{background:rgba(228,226,233,.18)}
+.lyr .ic-mode.on{color:var(--primary-2);background:rgba(168,199,255,.14)}
+.lyr .ic-mode .mi{width:15px;height:15px}
 
 /* —— 播放列表浮层：M3 menu surface —— */
 .queue{background:#26262e;border:0;border-radius:var(--r-md);box-shadow:var(--e3)}
