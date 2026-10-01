@@ -2351,15 +2351,26 @@ function applyLrcIdx(idx) {
   if (idx >= 0 && idx < kids.length) kids[idx].classList.add("acti");
 }
 /* 把当前行送到正中线。全部走缓存，不再读任何会触发重排的属性。
-   上限取 -top：保证这一行不会滑出容器顶部（歌词短于容器时 off 为正，正好居中）。 */
+   位移要夹在整列的范围里，否则开头几句会被顶在容器上沿：原来那句
+   「off 不超过 -row.top」等于强行把这一行贴到顶部，歌词刚开始那几句
+   于是全挤在上面。正确的边界是拿整列高度算 —— 整列比容器长时夹在
+   [lrcBoxH - total, 0]（首行不越过顶部、末行不越过底部），
+   整列比容器短时干脆整体居中，不做滚动。 */
 function scrollLrc() {
   if (!lrcTr) return;
   if (!lrcRows || lrcStale) measureLrc();
   if (!lrcRows || !lrcBoxH) return;   /* 歌词页还关着，等打开时再定位 */
   if (S.lrcIdx < 0 || S.lrcIdx >= lrcRows.length) return;
   var row = lrcRows[S.lrcIdx];
-  var off = Math.round(lrcBoxH / 2 - (row.top + row.h / 2));
-  if (off > -row.top) off = -row.top;
+  var last = lrcRows[lrcRows.length - 1];
+  var total = last.top + last.h;
+  var off;
+  if (total <= lrcBoxH) off = Math.round((lrcBoxH - total) / 2);
+  else {
+    off = Math.round(lrcBoxH / 2 - (row.top + row.h / 2));
+    if (off > 0) off = 0;                          /* 首行到顶就停 */
+    if (off < lrcBoxH - total) off = lrcBoxH - total;  /* 末行到底就停 */
+  }
   var v = "translate3d(0," + off + "px,0)";
   if (lrcTr.__tf === v) return;      /* 同一位置就别再写样式 */
   lrcTr.__tf = v;
